@@ -5,9 +5,9 @@ export const metadata: Metadata = {
   title: "BetterNotes Admin",
   description: "Internal control panel for BetterNotes admins",
   icons: {
-    icon: "/logo-circle.svg",
-    shortcut: "/logo-circle.svg",
-    apple: "/logo-circle.svg",
+    icon: "/icon.png?v=3",
+    shortcut: "/icon.png?v=3",
+    apple: "/apple-icon.png?v=3",
   },
 };
 
