@@ -1,10 +1,7 @@
-import { requireAdminForPage } from "@/lib/auth/require-admin";
-import { DashboardShell } from "@/modules/dashboard/components/dashboard-shell";
+import { OverviewView } from "@/modules/dashboard/components/overview-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  const user = await requireAdminForPage();
-
-  return <DashboardShell userEmail={user.email ?? "unknown"} />;
+export default function OverviewPage() {
+  return <OverviewView />;
 }
