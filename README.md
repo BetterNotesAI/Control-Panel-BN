@@ -12,7 +12,7 @@ Panel de control interno para BetterNotes construido con:
 - Login con Supabase Auth.
 - Protección de `/dashboard` por:
   - usuario autenticado
-  - email incluido en `ADMIN_EMAIL_ALLOWLIST`
+  - `profiles.admin_role = 'admin'`
 - KPIs:
   - total users (`profiles`)
   - users created last 7 days
@@ -33,9 +33,7 @@ Panel de control interno para BetterNotes construido con:
 ## Seguridad
 
 - `SUPABASE_SERVICE_ROLE_KEY` se usa solo server-side.
-- Autorización admin soporta dos vías:
-  - `profiles.admin_role` con valores `admin` o `superadmin` (recomendada).
-  - `ADMIN_EMAIL_ALLOWLIST` como fallback.
+- Autorización admin estricta por `profiles.admin_role = 'admin'`.
 - Todas las consultas sensibles van por API routes:
   - `GET /api/admin/kpis`
   - `GET /api/admin/activity?range=7d|30d`
@@ -88,10 +86,7 @@ cp .env.example .env.local
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
-ADMIN_EMAIL_ALLOWLIST=correo1@dominio.com,correo2@dominio.com
 ```
-
-`ADMIN_EMAIL_ALLOWLIST` puede quedar vacío si usas `profiles.admin_role`.
 
 4. Reiniciar el servidor de desarrollo después de cambiar variables:
 
@@ -120,7 +115,7 @@ npm run build
 ### Opción recomendada: Vercel
 
 1. Importar el repositorio en Vercel.
-2. Configurar las 4 variables de entorno (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_EMAIL_ALLOWLIST`).
+2. Configurar las 3 variables de entorno (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
 3. Deploy.
 
 ### Opción self-hosted
@@ -140,12 +135,12 @@ Este panel espera que exista la tabla `public.user_feedback` (como la migración
 
 Ejecuta:
 
-[`supabase/migrations/20260331_add_profiles_admin_role.sql`](/Users/martimassomoreno/Desktop/Martí/BetterNotesAI/BetterNotes2/ControlPanelBN/CPanelBN/Control-Panel-BN/supabase/migrations/20260331_add_profiles_admin_role.sql)
+[`supabase/migrations/20260331_enforce_admin_role_enum.sql`](/Users/martimassomoreno/Desktop/Martí/BetterNotesAI/BetterNotes2/ControlPanelBN/CPanelBN/Control-Panel-BN/supabase/migrations/20260331_enforce_admin_role_enum.sql)
 
 Y luego marca tu usuario:
 
 ```sql
 UPDATE public.profiles
-SET admin_role = 'superadmin'
+SET admin_role = 'admin'
 WHERE email = 'tu_email@dominio.com';
 ```

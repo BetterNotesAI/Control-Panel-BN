@@ -1,68 +1,36 @@
-import { getAdminAllowlist } from "@/lib/env";
 import { getSupabaseAdminClient } from "@/lib/supabase/service-role";
 import type { Database } from "@/types/database";
 
-export function isAdminEmail(email?: string | null): boolean {
-  if (!email) {
-    return false;
-  }
-
-  const normalized = email.trim().toLowerCase();
-  return getAdminAllowlist().includes(normalized);
-}
-
-function isPrivilegedRole(value?: string | null): boolean {
+function isAdminRole(value?: string | null): boolean {
   if (!value) {
     return false;
   }
 
   const role = value.trim().toLowerCase();
-  return role === "admin" || role === "superadmin";
-}
-
-function isMissingColumnError(error: { code?: string; message?: string }): boolean {
-  if (error.code === "42703") {
-    return true;
-  }
-
-  return Boolean(error.message?.toLowerCase().includes("admin_role"));
+  return role === "admin";
 }
 
 type ProfileAdminRecord = Pick<
-  Database["public"]["Tables"]["profiles"]["Row"],
-  "admin_role" | "email"
+  Database["public"]["Tables"]["profiles"]["Row"], "admin_role"
 >;
 
 export async function isUserAuthorizedForAdmin(user: {
   id: string;
-  email?: string | null;
 }): Promise<boolean> {
-  if (isAdminEmail(user.email)) {
-    return true;
-  }
-
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("admin_role,email")
+    .select("admin_role")
     .eq("id", user.id)
     .maybeSingle<ProfileAdminRecord>();
 
   if (error) {
-    if (isMissingColumnError(error)) {
-      return isAdminEmail(user.email);
-    }
-
     return false;
   }
 
   if (!data) {
-    return isAdminEmail(user.email);
+    return false;
   }
 
-  if (isPrivilegedRole(data.admin_role)) {
-    return true;
-  }
-
-  return isAdminEmail(data.email ?? user.email);
+  return isAdminRole(data.admin_role);
 }

@@ -26,12 +26,3 @@ export function getSupabaseServiceRoleKey(): string {
     "SUPABASE_SERVICE_ROLE_KEY",
   );
 }
-
-export function getAdminAllowlist(): string[] {
-  const raw = process.env.ADMIN_EMAIL_ALLOWLIST ?? "";
-
-  return raw
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-}

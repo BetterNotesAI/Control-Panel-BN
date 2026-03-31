@@ -6,19 +6,19 @@ export interface Database {
           id: string;
           email: string | null;
           created_at: string | null;
-          admin_role: string | null;
+          admin_role: Database["public"]["Enums"]["admin_role_enum"];
         };
         Insert: {
           id: string;
           email?: string | null;
           created_at?: string | null;
-          admin_role?: string | null;
+          admin_role?: Database["public"]["Enums"]["admin_role_enum"];
         };
         Update: {
           id?: string;
           email?: string | null;
           created_at?: string | null;
-          admin_role?: string | null;
+          admin_role?: Database["public"]["Enums"]["admin_role_enum"];
         };
         Relationships: [];
       };
@@ -91,7 +91,9 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
-    Enums: Record<string, never>;
+    Enums: {
+      admin_role_enum: "user" | "admin";
+    };
     CompositeTypes: Record<string, never>;
   };
 }

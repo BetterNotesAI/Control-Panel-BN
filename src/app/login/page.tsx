@@ -50,7 +50,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <LoginForm
           initialError={
             unauthorizedFromRedirect
-              ? "Sign in with an admin account (admin_role or allowlist)."
+              ? "Sign in with an account that has profiles.admin_role = 'admin'."
               : undefined
           }
         />
