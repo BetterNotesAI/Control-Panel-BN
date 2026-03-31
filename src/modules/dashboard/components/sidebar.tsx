@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -92,8 +93,22 @@ export function Sidebar({ userEmail }: SidebarProps) {
         )}
       >
         <div className="border-b border-border p-5">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted">BetterNotes</p>
-          <p className="text-sm font-semibold text-foreground">Admin Panel</p>
+          <div className="flex items-center gap-3">
+            <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full">
+              <Image
+                src="/logo.png"
+                alt="BetterNotes"
+                fill
+                priority
+                sizes="44px"
+                className="object-cover object-center"
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-widest text-muted">BetterNotes</p>
+              <p className="text-sm font-semibold text-foreground">Admin Panel</p>
+            </div>
+          </div>
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4">
