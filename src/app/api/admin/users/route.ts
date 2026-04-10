@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveEffectivePlan } from "@/lib/admin/users";
 import { requireAdminForApi } from "@/lib/auth/require-admin";
 import { getSupabaseAdminClient } from "@/lib/supabase/service-role";
 import type { AdminUserItem, UsersListResponse } from "@/types/users";
@@ -46,6 +47,34 @@ export async function GET(request: Request) {
     const total = count ?? 0;
     const totalPages = Math.ceil(total / pageSize);
 
+    const profileIds = (profiles ?? []).map((row) => row.id);
+
+    const subscriptionMap = new Map<string, { plan: string | null }>();
+
+    if (profileIds.length > 0) {
+      const { data: subscriptions, error: subscriptionsError } = await supabase
+        .from("subscriptions")
+        .select("user_id,plan,status,current_period_end,updated_at,created_at")
+        .in("user_id", profileIds)
+        .in("status", ["active", "trialing", "past_due"])
+        .order("user_id", { ascending: true })
+        .order("current_period_end", { ascending: false, nullsFirst: false })
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false });
+
+      if (subscriptionsError) {
+        throw subscriptionsError;
+      }
+
+      for (const row of subscriptions ?? []) {
+        if (!subscriptionMap.has(row.user_id)) {
+          subscriptionMap.set(row.user_id, {
+            plan: row.plan,
+          });
+        }
+      }
+    }
+
     // Enrich with auth metadata (avatars, names, last sign-in)
     const authMap = new Map<
       string,
@@ -77,19 +106,19 @@ export async function GET(request: Request) {
         id: row.id,
         email: row.email ?? null,
         full_name:
-          typeof record.full_name === "string"
-            ? record.full_name
+          typeof record.display_name === "string"
+            ? record.display_name
+            : typeof record.full_name === "string"
+              ? record.full_name
             : (auth?.full_name ?? null),
         avatar_url:
           typeof record.avatar_url === "string"
             ? record.avatar_url
             : (auth?.avatar_url ?? null),
-        plan:
-          typeof record.plan === "string"
-            ? record.plan
-            : typeof record.subscription_plan === "string"
-              ? (record.subscription_plan as string)
-              : null,
+        plan: resolveEffectivePlan({
+          subscriptionPlan: subscriptionMap.get(row.id)?.plan,
+          profilePlan: typeof record.plan === "string" ? record.plan : null,
+        }),
         created_at: row.created_at ?? new Date().toISOString(),
         last_sign_in_at: auth?.last_sign_in_at ?? null,
       };

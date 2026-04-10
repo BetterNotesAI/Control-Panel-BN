@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/state";
+import { PlanBadge, UserAvatar } from "@/modules/dashboard/components/user-ui";
 import type { AdminUserItem, UsersListResponse } from "@/types/users";
 
 const PAGE_SIZE = 20;
@@ -18,55 +20,8 @@ function formatDate(value: string): string {
   });
 }
 
-function UserAvatar({ user }: { user: AdminUserItem }) {
-  if (user.avatar_url) {
-    return (
-      <img
-        src={user.avatar_url}
-        alt=""
-        className="h-8 w-8 rounded-full object-cover"
-      />
-    );
-  }
-
-  const initials = (user.full_name ?? user.email ?? "?")
-    .split(/[\s@]/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-
-  return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surfaceMuted text-xs font-medium text-muted">
-      {initials}
-    </div>
-  );
-}
-
-function PlanBadge({ plan }: { plan: string | null }) {
-  if (!plan) {
-    return <span className="text-xs text-muted">—</span>;
-  }
-
-  const colorMap: Record<string, string> = {
-    free: "bg-surfaceMuted/60 text-muted border-border",
-    pro: "bg-info/20 text-info border-info/30",
-    premium: "bg-success/20 text-success border-success/30",
-    enterprise: "bg-warning/20 text-warning border-warning/30",
-  };
-
-  const cls =
-    colorMap[plan.toLowerCase()] ?? "bg-surfaceMuted/60 text-muted border-border";
-
-  return (
-    <span
-      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${cls}`}
-    >
-      {plan}
-    </span>
-  );
-}
-
 export function UsersView() {
+  const router = useRouter();
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -176,11 +131,24 @@ export function UsersView() {
                   {users.map((user) => (
                     <tr
                       key={user.id}
-                      className="border-b border-border/70 last:border-none"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => router.push(`/dashboard/users/${user.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          router.push(`/dashboard/users/${user.id}`);
+                        }
+                      }}
+                      className="cursor-pointer border-b border-border/70 transition-colors hover:bg-surfaceMuted/35 focus-visible:bg-surfaceMuted/35 focus-visible:outline-none last:border-none"
                     >
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3">
-                          <UserAvatar user={user} />
+                          <UserAvatar
+                            avatarUrl={user.avatar_url}
+                            displayName={user.full_name}
+                            email={user.email}
+                          />
                           <div>
                             {user.full_name ? (
                               <p className="text-sm font-medium text-foreground">
