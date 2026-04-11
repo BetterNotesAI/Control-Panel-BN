@@ -8,10 +8,16 @@ export interface Database {
           provider: string;
           model: string;
           feature: string | null;
+          project_type: string | null;
+          project_id: string | null;
           input_tokens: number;
           cached_input_tokens: number;
           output_tokens: number;
+          input_cost_usd: number | string;
+          cached_input_cost_usd: number | string;
+          output_cost_usd: number | string;
           total_cost_usd: number | string;
+          metadata: Record<string, unknown>;
           created_at: string;
         };
         Insert: {
@@ -20,10 +26,16 @@ export interface Database {
           provider: string;
           model: string;
           feature?: string | null;
+          project_type?: string | null;
+          project_id?: string | null;
           input_tokens?: number;
           cached_input_tokens?: number;
           output_tokens?: number;
+          input_cost_usd?: number | string;
+          cached_input_cost_usd?: number | string;
+          output_cost_usd?: number | string;
           total_cost_usd?: number | string;
+          metadata?: Record<string, unknown>;
           created_at?: string;
         };
         Update: {
@@ -32,10 +44,16 @@ export interface Database {
           provider?: string;
           model?: string;
           feature?: string | null;
+          project_type?: string | null;
+          project_id?: string | null;
           input_tokens?: number;
           cached_input_tokens?: number;
           output_tokens?: number;
+          input_cost_usd?: number | string;
+          cached_input_cost_usd?: number | string;
+          output_cost_usd?: number | string;
           total_cost_usd?: number | string;
+          metadata?: Record<string, unknown>;
           created_at?: string;
         };
         Relationships: [];
@@ -194,7 +212,97 @@ export interface Database {
         Relationships: [];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      analytics_projects_v: {
+        Row: {
+          project_type: string;
+          project_id: string;
+          user_id: string;
+          title: string | null;
+          status: string | null;
+          subtype: string | null;
+          source_table: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Relationships: [];
+      };
+      analytics_ai_usage_events_v: {
+        Row: {
+          usage_event_id: string;
+          created_at: string;
+          user_id: string;
+          user_email: string | null;
+          user_display_name: string | null;
+          project_type: string | null;
+          project_id: string | null;
+          project_title: string | null;
+          project_status: string | null;
+          project_subtype: string | null;
+          project_source: string | null;
+          provider: string;
+          model: string;
+          feature: string | null;
+          input_tokens: number;
+          cached_input_tokens: number;
+          output_tokens: number;
+          total_tokens: number;
+          input_cost_usd: number | string;
+          cached_input_cost_usd: number | string;
+          output_cost_usd: number | string;
+          total_cost_usd: number | string;
+          total_credits: number | string;
+          metadata: Record<string, unknown>;
+        };
+        Relationships: [];
+      };
+      analytics_ai_usage_by_project_v: {
+        Row: {
+          user_id: string;
+          user_email: string | null;
+          user_display_name: string | null;
+          project_type: string | null;
+          project_id: string | null;
+          project_title: string | null;
+          project_status: string | null;
+          project_subtype: string | null;
+          project_source: string | null;
+          event_count: number;
+          feature_count: number;
+          model_count: number;
+          first_event_at: string | null;
+          last_event_at: string | null;
+          input_tokens: number | string;
+          cached_input_tokens: number | string;
+          output_tokens: number | string;
+          total_tokens: number | string;
+          total_cost_usd: number | string;
+          total_credits: number | string;
+        };
+        Relationships: [];
+      };
+      analytics_ai_usage_by_user_feature_model_v: {
+        Row: {
+          user_id: string;
+          user_email: string | null;
+          user_display_name: string | null;
+          project_type: string | null;
+          feature: string | null;
+          provider: string;
+          model: string;
+          event_count: number;
+          first_event_at: string | null;
+          last_event_at: string | null;
+          input_tokens: number | string;
+          cached_input_tokens: number | string;
+          output_tokens: number | string;
+          total_tokens: number | string;
+          total_cost_usd: number | string;
+          total_credits: number | string;
+        };
+        Relationships: [];
+      };
+    };
     Functions: Record<string, never>;
     Enums: {
       admin_role_enum: "user" | "admin";

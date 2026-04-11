@@ -61,6 +61,34 @@ export function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+export function normalizeAvatarUrl(value: unknown): string | null {
+  const raw = readString(value);
+
+  if (!raw) {
+    return null;
+  }
+
+  if (
+    raw.startsWith("https://") ||
+    raw.startsWith("http://") ||
+    raw.startsWith("data:image/")
+  ) {
+    return raw;
+  }
+
+  return null;
+}
+
+export function pickPreferredAvatarUrl(params: {
+  profileAvatar: unknown;
+  authAvatar: unknown;
+}): string | null {
+  const authAvatar = normalizeAvatarUrl(params.authAvatar);
+  const profileAvatar = normalizeAvatarUrl(params.profileAvatar);
+
+  return authAvatar ?? profileAvatar;
+}
+
 export function readNumber(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;

@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { EffectivePlan } from "@/lib/admin/users";
 
@@ -20,13 +23,22 @@ export function UserAvatar({
   size = "sm",
 }: UserAvatarProps) {
   const sizeClass = avatarSizeClasses[size];
+  const normalizedAvatarUrl = avatarUrl?.trim() ?? null;
+  const [imageFailed, setImageFailed] = useState(false);
 
-  if (avatarUrl) {
+  useEffect(() => {
+    setImageFailed(false);
+  }, [normalizedAvatarUrl]);
+
+  if (normalizedAvatarUrl && !imageFailed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={avatarUrl}
-        alt=""
+        src={normalizedAvatarUrl}
+        alt={displayName ?? email ?? "User avatar"}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setImageFailed(true)}
         className={cn("rounded-full object-cover", sizeClass)}
       />
     );

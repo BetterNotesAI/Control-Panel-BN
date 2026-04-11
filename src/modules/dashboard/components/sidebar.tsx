@@ -40,6 +40,15 @@ const NAV_ITEMS = [
     ),
   },
   {
+    label: "Projects",
+    href: "/projects",
+    icon: (
+      <svg className="h-5 w-5" width="20" height="20" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 7.5A2.25 2.25 0 014.5 5.25h4.54c.597 0 1.169.237 1.59.659l1.17 1.17c.422.422.994.659 1.591.659H19.5A2.25 2.25 0 0121.75 10v8.25a2.25 2.25 0 01-2.25 2.25h-15A2.25 2.25 0 012.25 18.25V7.5z" />
+      </svg>
+    ),
+  },
+  {
     label: "Feedback",
     href: "/dashboard/feedback",
     icon: (

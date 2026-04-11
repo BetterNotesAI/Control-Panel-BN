@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveEffectivePlan } from "@/lib/admin/users";
+import { pickPreferredAvatarUrl, resolveEffectivePlan } from "@/lib/admin/users";
 import { requireAdminForApi } from "@/lib/auth/require-admin";
 import { getSupabaseAdminClient } from "@/lib/supabase/service-role";
 import type { AdminUserItem, UsersListResponse } from "@/types/users";
@@ -112,9 +112,10 @@ export async function GET(request: Request) {
               ? record.full_name
             : (auth?.full_name ?? null),
         avatar_url:
-          typeof record.avatar_url === "string"
-            ? record.avatar_url
-            : (auth?.avatar_url ?? null),
+          pickPreferredAvatarUrl({
+            profileAvatar: record.avatar_url,
+            authAvatar: auth?.avatar_url ?? null,
+          }),
         plan: resolveEffectivePlan({
           subscriptionPlan: subscriptionMap.get(row.id)?.plan,
           profilePlan: typeof record.plan === "string" ? record.plan : null,

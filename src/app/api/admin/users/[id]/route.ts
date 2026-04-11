@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getPlanCreditLimit,
+  pickPreferredAvatarUrl,
   readNumber,
   readString,
   resolveEffectivePlan,
@@ -160,7 +161,10 @@ export async function GET(
           authMetadata?.full_name ??
           null,
         username: readString(profileRecord.username) ?? authMetadata?.username ?? null,
-        avatar_url: readString(profileRecord.avatar_url) ?? authMetadata?.avatar_url ?? null,
+        avatar_url: pickPreferredAvatarUrl({
+          profileAvatar: profileRecord.avatar_url,
+          authAvatar: authMetadata?.avatar_url ?? null,
+        }),
         short_bio: readString(profileRecord.short_bio),
         university: readString(profileRecord.university),
         degree: readString(profileRecord.degree),
