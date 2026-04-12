@@ -303,10 +303,101 @@ export interface Database {
         Relationships: [];
       };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      admin_database_size_bytes: {
+        Args: Record<string, never>;
+        Returns: number | string;
+      };
+    };
     Enums: {
       admin_role_enum: "user" | "admin";
     };
+    CompositeTypes: Record<string, never>;
+  };
+  storage: {
+    Tables: {
+      buckets: {
+        Row: {
+          id: string;
+          name: string;
+          owner: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+          public: boolean;
+          avif_autodetection: boolean;
+          file_size_limit: number | null;
+          allowed_mime_types: string[] | null;
+        };
+        Insert: {
+          id: string;
+          name: string;
+          owner?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          public?: boolean;
+          avif_autodetection?: boolean;
+          file_size_limit?: number | null;
+          allowed_mime_types?: string[] | null;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          owner?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          public?: boolean;
+          avif_autodetection?: boolean;
+          file_size_limit?: number | null;
+          allowed_mime_types?: string[] | null;
+        };
+        Relationships: [];
+      };
+      objects: {
+        Row: {
+          id: string;
+          bucket_id: string | null;
+          name: string;
+          owner: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+          last_accessed_at: string | null;
+          metadata: Record<string, unknown> | null;
+          user_metadata: Record<string, unknown> | null;
+          path_tokens: string[] | null;
+          version: string | null;
+        };
+        Insert: {
+          id?: string;
+          bucket_id?: string | null;
+          name: string;
+          owner?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          last_accessed_at?: string | null;
+          metadata?: Record<string, unknown> | null;
+          user_metadata?: Record<string, unknown> | null;
+          path_tokens?: string[] | null;
+          version?: string | null;
+        };
+        Update: {
+          id?: string;
+          bucket_id?: string | null;
+          name?: string;
+          owner?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          last_accessed_at?: string | null;
+          metadata?: Record<string, unknown> | null;
+          user_metadata?: Record<string, unknown> | null;
+          path_tokens?: string[] | null;
+          version?: string | null;
+        };
+        Relationships: [];
+      };
+    };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
 }

@@ -20,6 +20,12 @@ Panel de control interno para BetterNotes construido con:
   - total problem solver sessions
   - feedback total
   - feedback new (`status='new'`)
+- Supabase capacity (overview):
+  - configured Supabase plan name
+  - storage usage in bytes (all buckets + top buckets)
+  - document storage usage (configurable buckets)
+  - database size bytes (via SQL function `public.admin_database_size_bytes()`)
+  - usage vs configured limits (`SUPABASE_*_LIMIT_BYTES`)
 - Actividad 7d/30d:
   - documentos por día
   - problem solver sessions por día
@@ -37,6 +43,7 @@ Panel de control interno para BetterNotes construido con:
 - Todas las consultas sensibles van por API routes:
   - `GET /api/admin/kpis`
   - `GET /api/admin/activity?range=7d|30d`
+  - `GET /api/admin/supabase-usage`
   - `GET /api/admin/feedback`
   - `PATCH /api/admin/feedback/[id]`
   - `GET /api/admin/feedback/export`
@@ -86,7 +93,22 @@ cp .env.example .env.local
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_PLAN_NAME=
+SUPABASE_DATABASE_LIMIT_BYTES=
+SUPABASE_STORAGE_LIMIT_BYTES=
+SUPABASE_DOCUMENT_BUCKET_IDS=
+SUPABASE_USAGE_MAX_SCANNED_OBJECTS=
+SUPABASE_USAGE_TOP_BUCKETS=
 ```
+
+Variables nuevas recomendadas para capacidad:
+
+- `SUPABASE_PLAN_NAME`: nombre del plan (por ejemplo `Free`, `Pro`, `Team`).
+- `SUPABASE_DATABASE_LIMIT_BYTES`: límite de base de datos en bytes.
+- `SUPABASE_STORAGE_LIMIT_BYTES`: límite de storage en bytes.
+- `SUPABASE_DOCUMENT_BUCKET_IDS`: buckets de documentos separados por comas (ej. `documents,uploads`).
+- `SUPABASE_USAGE_MAX_SCANNED_OBJECTS`: máximo de objetos de storage a escanear por cálculo (default `50000`).
+- `SUPABASE_USAGE_TOP_BUCKETS`: cuántos buckets mostrar en ranking (default `5`).
 
 4. Reiniciar el servidor de desarrollo después de cambiar variables:
 
@@ -144,3 +166,9 @@ UPDATE public.profiles
 SET admin_role = 'admin'
 WHERE email = 'tu_email@dominio.com';
 ```
+
+### Migración para métricas de tamaño de base de datos
+
+Para mostrar tamaño real de DB en bytes, aplica también:
+
+[`supabase/migrations/20260413_add_admin_database_size_function.sql`](/Users/martimassomoreno/Desktop/Martí/BetterNotesAI/BetterNotes2/ControlPanelBN/CPanelBN/Control-Panel-BN/supabase/migrations/20260413_add_admin_database_size_function.sql)

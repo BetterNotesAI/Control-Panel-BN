@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ActivityChart } from "@/modules/dashboard/components/activity-chart";
+import { SupabaseUsageSection } from "@/modules/dashboard/components/supabase-usage-section";
 import { ErrorState, LoadingState } from "@/components/ui/state";
 import type { ActivityResponse, AdminKpis } from "@/types/admin";
 
@@ -124,6 +125,8 @@ export function OverviewView() {
         isLoading={activityLoading}
         error={activityError}
       />
+
+      <SupabaseUsageSection />
     </div>
   );
 }
