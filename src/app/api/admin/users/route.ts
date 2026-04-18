@@ -1,8 +1,21 @@
 import { NextResponse } from "next/server";
-import { pickPreferredAvatarUrl, resolveEffectivePlan } from "@/lib/admin/users";
+import {
+  pickPreferredAvatarUrl,
+  readNumber,
+  resolveEffectivePlan,
+  roundTo,
+} from "@/lib/admin/users";
 import { requireAdminForApi } from "@/lib/auth/require-admin";
 import { getSupabaseAdminClient } from "@/lib/supabase/service-role";
 import type { AdminUserItem, UsersListResponse } from "@/types/users";
+
+function normalizeProjectType(value: unknown): string {
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+
+  return "unknown";
+}
 
 export async function GET(request: Request) {
   const authResult = await requireAdminForApi();
@@ -50,28 +63,97 @@ export async function GET(request: Request) {
     const profileIds = (profiles ?? []).map((row) => row.id);
 
     const subscriptionMap = new Map<string, { plan: string | null }>();
+    const projectCountsByUser = new Map<
+      string,
+      { totalProjects: number; projectCountByType: Map<string, number> }
+    >();
+    const usageByUser = new Map<
+      string,
+      {
+        totalTokens: number;
+        totalCredits: number;
+        usageByType: Map<string, { totalTokens: number; totalCredits: number }>;
+      }
+    >();
 
     if (profileIds.length > 0) {
-      const { data: subscriptions, error: subscriptionsError } = await supabase
-        .from("subscriptions")
-        .select("user_id,plan,status,current_period_end,updated_at,created_at")
-        .in("user_id", profileIds)
-        .in("status", ["active", "trialing", "past_due"])
-        .order("user_id", { ascending: true })
-        .order("current_period_end", { ascending: false, nullsFirst: false })
-        .order("updated_at", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false, nullsFirst: false });
+      const [subscriptionsResult, projectsResult, usageResult] = await Promise.all([
+        supabase
+          .from("subscriptions")
+          .select("user_id,plan,status,current_period_end,updated_at,created_at")
+          .in("user_id", profileIds)
+          .in("status", ["active", "trialing", "past_due"])
+          .order("user_id", { ascending: true })
+          .order("current_period_end", { ascending: false, nullsFirst: false })
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false, nullsFirst: false }),
+        supabase
+          .from("analytics_projects_v")
+          .select("user_id,project_type,project_id")
+          .in("user_id", profileIds),
+        supabase
+          .from("analytics_ai_usage_by_project_v")
+          .select("user_id,project_type,total_tokens,total_credits")
+          .in("user_id", profileIds),
+      ]);
 
-      if (subscriptionsError) {
-        throw subscriptionsError;
+      if (subscriptionsResult.error) {
+        throw subscriptionsResult.error;
       }
 
-      for (const row of subscriptions ?? []) {
+      if (projectsResult.error) {
+        throw projectsResult.error;
+      }
+
+      if (usageResult.error) {
+        throw usageResult.error;
+      }
+
+      for (const row of subscriptionsResult.data ?? []) {
         if (!subscriptionMap.has(row.user_id)) {
           subscriptionMap.set(row.user_id, {
             plan: row.plan,
           });
         }
+      }
+
+      for (const row of projectsResult.data ?? []) {
+        const projectType = normalizeProjectType(row.project_type);
+        const existing = projectCountsByUser.get(row.user_id) ?? {
+          totalProjects: 0,
+          projectCountByType: new Map<string, number>(),
+        };
+
+        existing.totalProjects += 1;
+        existing.projectCountByType.set(
+          projectType,
+          (existing.projectCountByType.get(projectType) ?? 0) + 1,
+        );
+
+        projectCountsByUser.set(row.user_id, existing);
+      }
+
+      for (const row of usageResult.data ?? []) {
+        const projectType = normalizeProjectType(row.project_type);
+        const totalTokens = readNumber(row.total_tokens);
+        const totalCredits = readNumber(row.total_credits);
+        const existing = usageByUser.get(row.user_id) ?? {
+          totalTokens: 0,
+          totalCredits: 0,
+          usageByType: new Map<string, { totalTokens: number; totalCredits: number }>(),
+        };
+        const byType = existing.usageByType.get(projectType) ?? {
+          totalTokens: 0,
+          totalCredits: 0,
+        };
+
+        existing.totalTokens += totalTokens;
+        existing.totalCredits += totalCredits;
+        byType.totalTokens += totalTokens;
+        byType.totalCredits += totalCredits;
+
+        existing.usageByType.set(projectType, byType);
+        usageByUser.set(row.user_id, existing);
       }
     }
 
@@ -101,6 +183,33 @@ export async function GET(request: Request) {
     const users: AdminUserItem[] = (profiles ?? []).map((row) => {
       const record = row as Record<string, unknown>;
       const auth = authMap.get(row.id);
+      const projectStats = projectCountsByUser.get(row.id);
+      const usageStats = usageByUser.get(row.id);
+      const typeNames = new Set<string>([
+        ...(projectStats?.projectCountByType.keys() ?? []),
+        ...(usageStats?.usageByType.keys() ?? []),
+      ]);
+      const projectTypeBreakdown = Array.from(typeNames)
+        .map((typeName) => ({
+          project_type: typeName,
+          project_count: projectStats?.projectCountByType.get(typeName) ?? 0,
+          total_tokens: Math.round(usageStats?.usageByType.get(typeName)?.totalTokens ?? 0),
+          total_credits: roundTo(
+            usageStats?.usageByType.get(typeName)?.totalCredits ?? 0,
+            4,
+          ),
+        }))
+        .sort((left, right) => {
+          if (right.project_count !== left.project_count) {
+            return right.project_count - left.project_count;
+          }
+
+          if (right.total_tokens !== left.total_tokens) {
+            return right.total_tokens - left.total_tokens;
+          }
+
+          return left.project_type.localeCompare(right.project_type);
+        });
 
       return {
         id: row.id,
@@ -122,6 +231,12 @@ export async function GET(request: Request) {
         }),
         created_at: row.created_at ?? new Date().toISOString(),
         last_sign_in_at: auth?.last_sign_in_at ?? null,
+        stats: {
+          total_projects: projectStats?.totalProjects ?? 0,
+          total_tokens: Math.round(usageStats?.totalTokens ?? 0),
+          total_credits: roundTo(usageStats?.totalCredits ?? 0, 4),
+          project_type_breakdown: projectTypeBreakdown,
+        },
       };
     });
 

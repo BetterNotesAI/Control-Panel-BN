@@ -1,5 +1,19 @@
 export type UserPlanTier = "free" | "better" | "best";
 
+export interface AdminUserProjectTypeStats {
+  project_type: string;
+  project_count: number;
+  total_tokens: number;
+  total_credits: number;
+}
+
+export interface AdminUserStats {
+  total_projects: number;
+  total_tokens: number;
+  total_credits: number;
+  project_type_breakdown: AdminUserProjectTypeStats[];
+}
+
 export interface AdminUserItem {
   id: string;
   email: string | null;
@@ -8,6 +22,7 @@ export interface AdminUserItem {
   plan: UserPlanTier;
   created_at: string;
   last_sign_in_at: string | null;
+  stats: AdminUserStats;
 }
 
 export interface UsersListResponse {

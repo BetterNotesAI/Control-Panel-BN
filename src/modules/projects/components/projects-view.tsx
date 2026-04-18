@@ -14,7 +14,6 @@ import {
   type ProjectListItem,
   type ProjectsKpis,
   type ProjectsListResponse,
-  type ProjectUserUsageResponse,
 } from "@/types/projects";
 
 const DEFAULT_FILTERS: ProjectFilters = {
@@ -26,6 +25,23 @@ const DEFAULT_FILTERS: ProjectFilters = {
 };
 
 const PAGE_SIZE = 20;
+type ProjectSortOption =
+  | "created_desc"
+  | "created_asc"
+  | "credits_desc"
+  | "tokens_desc"
+  | "title_asc";
+
+const PROJECT_SORT_OPTIONS: Array<{
+  value: ProjectSortOption;
+  label: string;
+}> = [
+  { value: "created_desc", label: "Newest first" },
+  { value: "created_asc", label: "Oldest first" },
+  { value: "credits_desc", label: "Highest credits" },
+  { value: "tokens_desc", label: "Highest tokens" },
+  { value: "title_asc", label: "Title A-Z" },
+];
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value);
@@ -50,26 +66,56 @@ function formatDate(value: string | null): string {
   });
 }
 
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function toReadableType(value: string | null): string {
   if (!value) {
     return "Unknown";
   }
 
   return value.replace(/_/g, " ");
+}
+
+function getProjectTypeHighlightClasses(projectType: string | null): string {
+  switch (projectType) {
+    case "cheat_sheet":
+      return "border-info/30 bg-info/20 text-info";
+    case "exam":
+      return "border-warning/30 bg-warning/20 text-warning";
+    case "problem_solver":
+      return "border-success/30 bg-success/20 text-success";
+    default:
+      return "border-border bg-surfaceMuted/70 text-muted";
+  }
+}
+
+function parseTimestamp(value: string | null): number {
+  if (!value) {
+    return 0;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function compareProjects(
+  left: ProjectListItem,
+  right: ProjectListItem,
+  sortOption: ProjectSortOption,
+): number {
+  switch (sortOption) {
+    case "created_asc":
+      return parseTimestamp(left.created_at) - parseTimestamp(right.created_at);
+    case "credits_desc":
+      return right.total_credits - left.total_credits;
+    case "tokens_desc":
+      return right.total_tokens - left.total_tokens;
+    case "title_asc":
+      return (left.title ?? "").localeCompare(right.title ?? "", undefined, {
+        sensitivity: "base",
+      });
+    case "created_desc":
+    default:
+      return parseTimestamp(right.created_at) - parseTimestamp(left.created_at);
+  }
 }
 
 function readErrorMessage(response: Response, fallback: string): Promise<string> {
@@ -155,15 +201,11 @@ export function ProjectsView() {
   const [appliedFilters, setAppliedFilters] = useState<ProjectFilters>(DEFAULT_FILTERS);
 
   const [projectsPage, setProjectsPage] = useState(1);
-  const [usagePage, setUsagePage] = useState(1);
+  const [projectSort, setProjectSort] = useState<ProjectSortOption>("created_desc");
 
   const [projectsData, setProjectsData] = useState<ProjectsListResponse | null>(null);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState<string | null>(null);
-
-  const [userUsageData, setUserUsageData] = useState<ProjectUserUsageResponse | null>(null);
-  const [userUsageLoading, setUserUsageLoading] = useState(true);
-  const [userUsageError, setUserUsageError] = useState<string | null>(null);
 
   const fetchProjects = useCallback(async () => {
     setProjectsLoading(true);
@@ -197,45 +239,9 @@ export function ProjectsView() {
     }
   }, [appliedFilters, projectsPage]);
 
-  const fetchUserUsage = useCallback(async () => {
-    setUserUsageLoading(true);
-    setUserUsageError(null);
-
-    try {
-      const params = buildFilterParams(appliedFilters);
-      params.set("page", String(usagePage));
-      params.set("pageSize", String(PAGE_SIZE));
-
-      const response = await fetch(`/api/admin/projects/users?${params.toString()}`, {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error(await readErrorMessage(response, "Failed to load usage by user."));
-      }
-
-      const body = (await response.json()) as ProjectUserUsageResponse;
-      setUserUsageData(body);
-
-      if (body.totalPages > 0 && usagePage > body.totalPages) {
-        setUsagePage(body.totalPages);
-      }
-    } catch (error) {
-      setUserUsageError(
-        error instanceof Error ? error.message : "Failed to load usage by user.",
-      );
-    } finally {
-      setUserUsageLoading(false);
-    }
-  }, [appliedFilters, usagePage]);
-
   useEffect(() => {
     void fetchProjects();
   }, [fetchProjects]);
-
-  useEffect(() => {
-    void fetchUserUsage();
-  }, [fetchUserUsage]);
 
   const kpis: ProjectsKpis = useMemo(
     () =>
@@ -251,14 +257,12 @@ export function ProjectsView() {
   const handleApplyFilters = () => {
     const normalized = normalizeFilters(draftFilters);
     setProjectsPage(1);
-    setUsagePage(1);
     setAppliedFilters(normalized);
     setDraftFilters(normalized);
   };
 
   const handleResetFilters = () => {
     setProjectsPage(1);
-    setUsagePage(1);
     setDraftFilters(DEFAULT_FILTERS);
     setAppliedFilters(DEFAULT_FILTERS);
   };
@@ -293,6 +297,23 @@ export function ProjectsView() {
     return `${visible} visible of ${total}`;
   }, [projectsData]);
 
+  const sortedProjects = useMemo(() => {
+    const projects = projectsData?.projects ?? [];
+    return [...projects].sort((left, right) => compareProjects(left, right, projectSort));
+  }, [projectSort, projectsData]);
+
+  const currentSortLabel = useMemo(() => {
+    return PROJECT_SORT_OPTIONS.find((option) => option.value === projectSort)?.label ?? "Newest first";
+  }, [projectSort]);
+
+  const handleCycleProjectSort = () => {
+    setProjectSort((current) => {
+      const currentIndex = PROJECT_SORT_OPTIONS.findIndex((option) => option.value === current);
+      const nextIndex = (currentIndex + 1) % PROJECT_SORT_OPTIONS.length;
+      return PROJECT_SORT_OPTIONS[nextIndex]?.value ?? PROJECT_SORT_OPTIONS[0].value;
+    });
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -304,9 +325,9 @@ export function ProjectsView() {
           variant="secondary"
           size="sm"
           onClick={() => {
-            void Promise.all([fetchProjects(), fetchUserUsage()]);
+            void fetchProjects();
           }}
-          disabled={projectsLoading || userUsageLoading}
+          disabled={projectsLoading}
         >
           Refresh
         </Button>
@@ -388,17 +409,17 @@ export function ProjectsView() {
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button onClick={handleApplyFilters} disabled={projectsLoading || userUsageLoading}>
+          <Button onClick={handleApplyFilters} disabled={projectsLoading}>
             Apply filters
           </Button>
           <Button
             variant="secondary"
             onClick={handleResetFilters}
-            disabled={projectsLoading || userUsageLoading}
+            disabled={projectsLoading}
           >
             Reset
           </Button>
-          <Button variant="ghost" onClick={handleExportCsv} disabled={userUsageLoading}>
+          <Button variant="ghost" onClick={handleExportCsv} disabled={projectsLoading}>
             Export user usage CSV
           </Button>
         </div>
@@ -423,6 +444,12 @@ export function ProjectsView() {
 
         {!projectsLoading && !projectsError && (projectsData?.projects.length ?? 0) > 0 ? (
           <>
+            <div className="mb-3 flex items-center justify-end">
+              <Button variant="secondary" size="sm" onClick={handleCycleProjectSort}>
+                Sort: {currentSortLabel}
+              </Button>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead>
@@ -438,7 +465,7 @@ export function ProjectsView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {projectsData?.projects.map((project) => (
+                  {sortedProjects.map((project) => (
                     <tr
                       key={`${project.project_type}:${project.project_id}`}
                       role="button"
@@ -452,8 +479,12 @@ export function ProjectsView() {
                       }}
                       className="cursor-pointer border-b border-border/70 transition-colors hover:bg-surfaceMuted/35 focus-visible:bg-surfaceMuted/35 focus-visible:outline-none last:border-none"
                     >
-                      <td className="px-2 py-3 text-xs text-muted capitalize">
-                        {toReadableType(project.project_type)}
+                      <td className="px-2 py-3">
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${getProjectTypeHighlightClasses(project.project_type)}`}
+                        >
+                          {toReadableType(project.project_type)}
+                        </span>
                       </td>
                       <td className="px-2 py-3">
                         <p className="font-medium text-foreground">
@@ -489,89 +520,6 @@ export function ProjectsView() {
               page={projectsPage}
               totalPages={projectsData?.totalPages ?? 0}
               onPageChange={setProjectsPage}
-            />
-          </>
-        ) : null}
-      </Card>
-
-      <Card title="Usage by User / Feature / Model" subtitle="AI consumption segmentation">
-        {userUsageLoading ? <LoadingState message="Loading user usage..." /> : null}
-        {userUsageError ? <ErrorState message={userUsageError} /> : null}
-        {!userUsageLoading && !userUsageError && (userUsageData?.items.length ?? 0) === 0 ? (
-          <EmptyState message="No usage rows match the current filters." />
-        ) : null}
-
-        {!userUsageLoading && !userUsageError && (userUsageData?.items.length ?? 0) > 0 ? (
-          <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                    <th className="px-2 py-2">User</th>
-                    <th className="px-2 py-2">Project type</th>
-                    <th className="px-2 py-2">Feature</th>
-                    <th className="px-2 py-2">Provider / Model</th>
-                    <th className="px-2 py-2">Events</th>
-                    <th className="px-2 py-2">Tokens</th>
-                    <th className="px-2 py-2">Credits</th>
-                    <th className="px-2 py-2">First event</th>
-                    <th className="px-2 py-2">Last event</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {userUsageData?.items.map((item, index) => (
-                    <tr
-                      key={[
-                        item.user_id,
-                        item.project_type ?? "",
-                        item.feature ?? "",
-                        item.provider,
-                        item.model,
-                        index,
-                      ].join(":")}
-                      className="border-b border-border/70 last:border-none"
-                    >
-                      <td className="px-2 py-3 text-xs text-muted">
-                        <p className="text-foreground">
-                          {item.user_display_name ?? item.user_email ?? item.user_id}
-                        </p>
-                        <p>{item.user_email ?? "—"}</p>
-                      </td>
-                      <td className="px-2 py-3 text-xs text-muted capitalize">
-                        {toReadableType(item.project_type)}
-                      </td>
-                      <td className="px-2 py-3 text-xs text-muted">
-                        {item.feature ?? "general"}
-                      </td>
-                      <td className="px-2 py-3 text-xs text-muted">
-                        <p>{item.provider}</p>
-                        <p>{item.model}</p>
-                      </td>
-                      <td className="px-2 py-3 text-xs text-muted">
-                        {formatNumber(item.event_count)}
-                      </td>
-                      <td className="px-2 py-3 text-xs text-muted">
-                        {formatNumber(item.total_tokens)}
-                      </td>
-                      <td className="px-2 py-3 text-xs text-muted">
-                        {formatCredits(item.total_credits)}
-                      </td>
-                      <td className="px-2 py-3 text-xs text-muted">
-                        {formatDateTime(item.first_event_at)}
-                      </td>
-                      <td className="px-2 py-3 text-xs text-muted">
-                        {formatDateTime(item.last_event_at)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <Pagination
-              page={usagePage}
-              totalPages={userUsageData?.totalPages ?? 0}
-              onPageChange={setUsagePage}
             />
           </>
         ) : null}
