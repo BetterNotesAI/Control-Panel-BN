@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { FeedbackFilters } from "@/types/feedback";
-import { FEEDBACK_STATUSES } from "@/types/feedback";
+import { FEEDBACK_STATUSES, FEEDBACK_TYPES, getFeedbackTypeLabel } from "@/types/feedback";
 
 interface FeedbackFiltersProps {
   value: FeedbackFilters;
@@ -40,12 +40,18 @@ export function FeedbackFiltersBar({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs text-muted">Source</label>
-          <Input
-            placeholder="web, mobile, extension..."
-            value={value.source}
-            onChange={(event) => onChange({ ...value, source: event.target.value })}
-          />
+          <label className="text-xs text-muted">Type</label>
+          <Select
+            value={value.type}
+            onChange={(event) => onChange({ ...value, type: event.target.value as FeedbackFilters["type"] })}
+          >
+            <option value="all">All</option>
+            {FEEDBACK_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {getFeedbackTypeLabel(type)}
+              </option>
+            ))}
+          </Select>
         </div>
 
         <div className="space-y-1">

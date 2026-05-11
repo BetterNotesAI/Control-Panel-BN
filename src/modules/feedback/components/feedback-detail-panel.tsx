@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { FeedbackItem, FeedbackPatchPayload } from "@/types/feedback";
-import { FEEDBACK_STATUSES } from "@/types/feedback";
+import { FEEDBACK_STATUSES, getFeedbackTypeLabel } from "@/types/feedback";
 
 interface FeedbackDetailPanelProps {
   item: FeedbackItem | null;
@@ -86,8 +86,8 @@ export function FeedbackDetailPanel({
               <p className="break-all text-foreground">{item.user_email ?? "-"}</p>
             </div>
             <div>
-              <p className="text-xs uppercase text-muted">Source</p>
-              <p className="text-foreground">{item.source}</p>
+              <p className="text-xs uppercase text-muted">Type</p>
+              <p className="text-foreground">{getFeedbackTypeLabel(item.type)}</p>
             </div>
             <div>
               <p className="text-xs uppercase text-muted">Page path</p>

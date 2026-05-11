@@ -8,12 +8,27 @@ export const FEEDBACK_STATUSES = [
 
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
 
+export const FEEDBACK_TYPES = ["suggestion", "faculty"] as const;
+
+export type FeedbackType = (typeof FEEDBACK_TYPES)[number];
+
+export const FACULTY_FEEDBACK_SOURCE = "faculty";
+
+export function getFeedbackTypeFromSource(source: string | null | undefined): FeedbackType {
+  return source === FACULTY_FEEDBACK_SOURCE ? "faculty" : "suggestion";
+}
+
+export function getFeedbackTypeLabel(type: FeedbackType): string {
+  return type === "faculty" ? "Faculty" : "Suggestion";
+}
+
 export interface FeedbackItem {
   id: string;
   user_id: string;
   message: string;
   page_path: string | null;
   source: string;
+  type: FeedbackType;
   status: FeedbackStatus;
   admin_note: string | null;
   created_at: string;
@@ -23,7 +38,7 @@ export interface FeedbackItem {
 
 export interface FeedbackFilters {
   status: "all" | FeedbackStatus;
-  source: string;
+  type: "all" | FeedbackType;
   query: string;
   startDate: string;
   endDate: string;

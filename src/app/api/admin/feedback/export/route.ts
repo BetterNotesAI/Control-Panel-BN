@@ -7,6 +7,7 @@ import {
 } from "@/lib/admin/feedback";
 import { requireAdminForApi } from "@/lib/auth/require-admin";
 import { getSupabaseAdminClient } from "@/lib/supabase/service-role";
+import { getFeedbackTypeLabel } from "@/types/feedback";
 
 export async function GET(request: Request) {
   const authResult = await requireAdminForApi();
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
       "updated_at",
       "user_id",
       "user_email",
-      "source",
+      "type",
       "status",
       "page_path",
       "message",
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
           escapeCsvValue(item.updated_at),
           escapeCsvValue(item.user_id),
           escapeCsvValue(item.user_email),
-          escapeCsvValue(item.source),
+          escapeCsvValue(getFeedbackTypeLabel(item.type)),
           escapeCsvValue(item.status),
           escapeCsvValue(item.page_path),
           escapeCsvValue(item.message),

@@ -1,16 +1,21 @@
 import {
+  FACULTY_FEEDBACK_SOURCE,
   FEEDBACK_STATUSES,
+  FEEDBACK_TYPES,
+  getFeedbackTypeFromSource,
   type FeedbackItem,
   type FeedbackStatus,
+  type FeedbackType,
 } from "@/types/feedback";
 import type { Database } from "@/types/database";
 import { getSupabaseAdminClient } from "@/lib/supabase/service-role";
 
 const FEEDBACK_STATUS_SET = new Set(FEEDBACK_STATUSES);
+const FEEDBACK_TYPE_SET = new Set(FEEDBACK_TYPES);
 
 export interface FeedbackQueryFilters {
   status?: FeedbackStatus;
-  source?: string;
+  type?: FeedbackType;
   query?: string;
   startDate?: string;
   endDate?: string;
@@ -20,6 +25,7 @@ export type FeedbackRow = Database["public"]["Tables"]["user_feedback"]["Row"];
 
 interface FeedbackFilterQuery {
   eq: (column: string, value: string) => FeedbackFilterQuery;
+  neq: (column: string, value: string) => FeedbackFilterQuery;
   ilike: (column: string, pattern: string) => FeedbackFilterQuery;
   gte: (column: string, value: string) => FeedbackFilterQuery;
   lt: (column: string, value: string) => FeedbackFilterQuery;
@@ -29,7 +35,7 @@ type AdminClient = ReturnType<typeof getSupabaseAdminClient>;
 
 export function parseFeedbackFilters(searchParams: URLSearchParams): FeedbackQueryFilters {
   const statusRaw = searchParams.get("status")?.trim().toLowerCase();
-  const sourceRaw = searchParams.get("source")?.trim();
+  const typeRaw = searchParams.get("type")?.trim().toLowerCase();
   const queryRaw = searchParams.get("q")?.trim();
   const startDateRaw = searchParams.get("startDate")?.trim();
   const endDateRaw = searchParams.get("endDate")?.trim();
@@ -39,7 +45,10 @@ export function parseFeedbackFilters(searchParams: URLSearchParams): FeedbackQue
       statusRaw && FEEDBACK_STATUS_SET.has(statusRaw as FeedbackStatus)
         ? (statusRaw as FeedbackStatus)
         : undefined,
-    source: sourceRaw || undefined,
+    type:
+      typeRaw && FEEDBACK_TYPE_SET.has(typeRaw as FeedbackType)
+        ? (typeRaw as FeedbackType)
+        : undefined,
     query: queryRaw || undefined,
     startDate: normalizeDateInput(startDateRaw),
     endDate: normalizeDateInput(endDateRaw),
@@ -77,8 +86,12 @@ export function applyFeedbackFilters<T extends FeedbackFilterQuery>(
     nextQuery = nextQuery.eq("status", filters.status);
   }
 
-  if (filters.source) {
-    nextQuery = nextQuery.eq("source", filters.source);
+  if (filters.type === "faculty") {
+    nextQuery = nextQuery.eq("source", FACULTY_FEEDBACK_SOURCE);
+  }
+
+  if (filters.type === "suggestion") {
+    nextQuery = nextQuery.neq("source", FACULTY_FEEDBACK_SOURCE);
   }
 
   if (filters.query) {
@@ -165,6 +178,7 @@ export async function enrichFeedbackRowsWithEmail(
 
   return rows.map((row) => ({
     ...row,
+    type: getFeedbackTypeFromSource(row.source),
     status: FEEDBACK_STATUS_SET.has(row.status as FeedbackStatus)
       ? (row.status as FeedbackStatus)
       : "new",

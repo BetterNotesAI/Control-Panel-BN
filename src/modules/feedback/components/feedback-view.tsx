@@ -13,7 +13,7 @@ import type {
 
 const DEFAULT_FILTERS: FeedbackFilters = {
   status: "all",
-  source: "",
+  type: "all",
   query: "",
   startDate: "",
   endDate: "",
@@ -28,8 +28,8 @@ function buildFilterParams(filters: FeedbackFilters): URLSearchParams {
     params.set("status", filters.status);
   }
 
-  if (filters.source.trim()) {
-    params.set("source", filters.source.trim());
+  if (filters.type !== "all") {
+    params.set("type", filters.type);
   }
 
   if (filters.query.trim()) {

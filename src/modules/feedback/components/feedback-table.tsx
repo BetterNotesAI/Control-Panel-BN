@@ -2,7 +2,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/state";
 import { Pagination } from "@/components/ui/pagination";
-import type { FeedbackItem } from "@/types/feedback";
+import { getFeedbackTypeLabel, type FeedbackItem } from "@/types/feedback";
 
 interface FeedbackTableProps {
   items: FeedbackItem[];
@@ -59,7 +59,7 @@ export function FeedbackTable({
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
                   <th className="px-2 py-2">Created at</th>
                   <th className="px-2 py-2">User</th>
-                  <th className="px-2 py-2">Source</th>
+                  <th className="px-2 py-2">Type</th>
                   <th className="px-2 py-2">Status</th>
                   <th className="px-2 py-2">Message</th>
                   <th className="px-2 py-2" />
@@ -70,7 +70,7 @@ export function FeedbackTable({
                   <tr key={item.id} className="border-b border-border/70 text-foreground last:border-none">
                     <td className="px-2 py-2 text-xs text-muted">{formatDate(item.created_at)}</td>
                     <td className="px-2 py-2 text-xs">{item.user_email ?? item.user_id}</td>
-                    <td className="px-2 py-2 text-xs">{item.source}</td>
+                    <td className="px-2 py-2 text-xs">{getFeedbackTypeLabel(item.type)}</td>
                     <td className="px-2 py-2">
                       <StatusBadge status={item.status} />
                     </td>
