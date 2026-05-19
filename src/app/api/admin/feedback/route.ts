@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const baseQuery = supabase
       .from("user_feedback")
       .select(
-        "id,user_id,message,page_path,source,status,admin_note,created_at,updated_at",
+        "id,user_id,message,phone_number,page_path,source,status,admin_note,created_at,updated_at",
         {
           count: "exact",
         },

@@ -121,7 +121,7 @@ export async function fetchAllFeedbackRows(
     const baseQuery = supabase
       .from("user_feedback")
       .select(
-        "id,user_id,message,page_path,source,status,admin_note,created_at,updated_at",
+        "id,user_id,message,phone_number,page_path,source,status,admin_note,created_at,updated_at",
       )
       .order("created_at", { ascending: false })
       .range(from, from + chunkSize - 1);
@@ -159,39 +159,19 @@ export async function enrichFeedbackRowsWithEmail(
   }
 
   const uniqueUserIds = [...new Set(rows.map((row) => row.user_id))];
-  const profileByUserId = new Map<string, { email: string | null; phone: string | null }>();
+  const emailByUserId = new Map<string, string | null>();
 
-  // Try to select phone; fall back gracefully if the column doesn't exist yet.
-  const { data: profilesWithPhone, error: phoneError } = await supabase
+  const { data: profiles, error } = await supabase
     .from("profiles")
-    .select("id,email,phone")
+    .select("id,email")
     .in("id", uniqueUserIds);
 
-  let profiles: Array<{ id: string; email: string | null; phone?: string | null }>;
-
-  if (phoneError) {
-    const { data: profilesBasic, error: basicError } = await supabase
-      .from("profiles")
-      .select("id,email")
-      .in("id", uniqueUserIds);
-
-    if (basicError) {
-      throw basicError;
-    }
-
-    profiles = (profilesBasic ?? []).map((p) => ({ ...p, phone: null }));
-  } else {
-    profiles = (profilesWithPhone ?? []).map((p) => ({
-      ...p,
-      phone: (p as { phone?: string | null }).phone ?? null,
-    }));
+  if (error) {
+    throw error;
   }
 
-  for (const profile of profiles) {
-    profileByUserId.set(profile.id, {
-      email: profile.email ?? null,
-      phone: profile.phone ?? null,
-    });
+  for (const profile of profiles ?? []) {
+    emailByUserId.set(profile.id, profile.email ?? null);
   }
 
   return rows.map((row) => ({
@@ -200,8 +180,8 @@ export async function enrichFeedbackRowsWithEmail(
     status: FEEDBACK_STATUS_SET.has(row.status as FeedbackStatus)
       ? (row.status as FeedbackStatus)
       : "new",
-    user_email: profileByUserId.get(row.user_id)?.email ?? null,
-    user_phone: profileByUserId.get(row.user_id)?.phone ?? null,
+    user_email: emailByUserId.get(row.user_id) ?? null,
+    user_phone: row.phone_number ?? null,
   }));
 }
 
