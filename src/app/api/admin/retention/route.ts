@@ -167,15 +167,10 @@ export async function GET() {
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Cohort: users whose first activity was >7 days ago (same base for both metrics).
-    // The two windows (7d / 30d) only change the recency check, not the denominator,
-    // so 30d% is always >= 7d% and both numbers are directly comparable.
-    const baseCohort = activeUsers.filter(
-      (u) => u.firstActivityAt && new Date(u.firstActivityAt) < sevenDaysAgo,
-    );
-
-    const retention7d = computeRetentionMetrics(baseCohort, sevenDaysAgo, "7d");
-    const retention30d = computeRetentionMetrics(baseCohort, thirtyDaysAgo, "30d");
+    // Cohort: all users who ever had AI activity (lifetime users).
+    // 7d and 30d only change the recency window, so 30d% >= 7d% always.
+    const retention7d = computeRetentionMetrics(activeUsers, sevenDaysAgo, "7d");
+    const retention30d = computeRetentionMetrics(activeUsers, thirtyDaysAgo, "30d");
 
     const topUsers: RetentionTopUser[] = [...activeUsers]
       .sort((a, b) => {

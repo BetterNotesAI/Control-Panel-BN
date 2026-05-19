@@ -118,14 +118,14 @@ export function RetentionView() {
           <div className="grid gap-4 md:grid-cols-2">
             <RetentionGauge
               label="7-day retention"
-              subtitle="Of users active 7+ days ago, % who came back in the last 7 days"
+              subtitle="Of all lifetime users, % who came back in the last 7 days"
               rate={data.retention7d.retentionRate}
               returned={data.retention7d.returned}
               cohortSize={data.retention7d.cohortSize}
             />
             <RetentionGauge
               label="30-day retention"
-              subtitle="Of users active 7+ days ago, % who came back in the last 30 days"
+              subtitle="Of all lifetime users, % who came back in the last 30 days"
               rate={data.retention30d.retentionRate}
               returned={data.retention30d.returned}
               cohortSize={data.retention30d.cohortSize}
