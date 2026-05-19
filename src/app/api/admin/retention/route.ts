@@ -26,23 +26,24 @@ function daysBetween(earlier: Date, later: Date): number {
   return Math.floor((later.getTime() - earlier.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// cohort = users first active >7 days ago (shared denominator for both windows)
-// returned = how many of that cohort had activity within the recency window
+// totalUsers = all profiles (the true lifetime denominator)
+// activeUsers = only those with AI activity (used for the numerator)
 function computeRetentionMetrics(
-  cohort: UserActivity[],
+  activeUsers: UserActivity[],
+  totalUsers: number,
   windowStart: Date,
   windowLabel: "7d" | "30d",
 ): RetentionMetrics {
-  const returned = cohort.filter(
+  const returned = activeUsers.filter(
     (u) => u.lastActivityAt && new Date(u.lastActivityAt) >= windowStart,
   );
 
   const retentionRate =
-    cohort.length > 0 ? roundTo((returned.length / cohort.length) * 100, 1) : 0;
+    totalUsers > 0 ? roundTo((returned.length / totalUsers) * 100, 1) : 0;
 
   return {
     window: windowLabel,
-    cohortSize: cohort.length,
+    cohortSize: totalUsers,
     returned: returned.length,
     retentionRate,
   };
@@ -114,6 +115,19 @@ async function fetchAllUserActivity(): Promise<Map<string, UserActivity>> {
   return map;
 }
 
+async function fetchTotalProfileCount(): Promise<number> {
+  const supabase = getSupabaseAdminClient();
+  const { count, error } = await supabase
+    .from("profiles")
+    .select("*", { count: "exact", head: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return count ?? 0;
+}
+
 async function fetchProfileMap(
   userIds: string[],
 ): Promise<Map<string, { email: string | null; plan: string }>> {
@@ -157,7 +171,11 @@ export async function GET() {
   }
 
   try {
-    const activityMap = await fetchAllUserActivity();
+    const [activityMap, totalUsers] = await Promise.all([
+      fetchAllUserActivity(),
+      fetchTotalProfileCount(),
+    ]);
+
     const users = Array.from(activityMap.values());
     const activeUsers = users.filter((u) => u.firstActivityAt && u.lastActivityAt);
 
@@ -167,10 +185,10 @@ export async function GET() {
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Cohort: all users who ever had AI activity (lifetime users).
-    // 7d and 30d only change the recency window, so 30d% >= 7d% always.
-    const retention7d = computeRetentionMetrics(activeUsers, sevenDaysAgo, "7d");
-    const retention30d = computeRetentionMetrics(activeUsers, thirtyDaysAgo, "30d");
+    // Denominator: all profiles (matches the overview user count).
+    // Numerator: users with AI activity in the recency window.
+    const retention7d = computeRetentionMetrics(activeUsers, totalUsers, sevenDaysAgo, "7d");
+    const retention30d = computeRetentionMetrics(activeUsers, totalUsers, thirtyDaysAgo, "30d");
 
     const topUsers: RetentionTopUser[] = [...activeUsers]
       .sort((a, b) => {
@@ -217,7 +235,7 @@ export async function GET() {
 
     const response: RetentionResponse = {
       generatedAt: now.toISOString(),
-      totalUsersWithActivity: activeUsers.length,
+      totalUsersWithActivity: totalUsers,
       retention7d,
       retention30d,
       topUsers,
