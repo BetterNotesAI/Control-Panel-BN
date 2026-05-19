@@ -161,19 +161,36 @@ export async function enrichFeedbackRowsWithEmail(
   const uniqueUserIds = [...new Set(rows.map((row) => row.user_id))];
   const profileByUserId = new Map<string, { email: string | null; phone: string | null }>();
 
-  const { data: profiles, error } = await supabase
+  // Try to select phone; fall back gracefully if the column doesn't exist yet.
+  const { data: profilesWithPhone, error: phoneError } = await supabase
     .from("profiles")
     .select("id,email,phone")
     .in("id", uniqueUserIds);
 
-  if (error) {
-    throw error;
+  let profiles: Array<{ id: string; email: string | null; phone?: string | null }>;
+
+  if (phoneError) {
+    const { data: profilesBasic, error: basicError } = await supabase
+      .from("profiles")
+      .select("id,email")
+      .in("id", uniqueUserIds);
+
+    if (basicError) {
+      throw basicError;
+    }
+
+    profiles = (profilesBasic ?? []).map((p) => ({ ...p, phone: null }));
+  } else {
+    profiles = (profilesWithPhone ?? []).map((p) => ({
+      ...p,
+      phone: (p as { phone?: string | null }).phone ?? null,
+    }));
   }
 
-  for (const profile of profiles ?? []) {
+  for (const profile of profiles) {
     profileByUserId.set(profile.id, {
       email: profile.email ?? null,
-      phone: (profile as { phone?: string | null }).phone ?? null,
+      phone: profile.phone ?? null,
     });
   }
 
