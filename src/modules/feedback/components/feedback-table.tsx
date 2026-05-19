@@ -59,6 +59,7 @@ export function FeedbackTable({
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
                   <th className="px-2 py-2">Created at</th>
                   <th className="px-2 py-2">User</th>
+                  <th className="px-2 py-2">Phone</th>
                   <th className="px-2 py-2">Type</th>
                   <th className="px-2 py-2">Status</th>
                   <th className="px-2 py-2">Message</th>
@@ -70,6 +71,7 @@ export function FeedbackTable({
                   <tr key={item.id} className="border-b border-border/70 text-foreground last:border-none">
                     <td className="px-2 py-2 text-xs text-muted">{formatDate(item.created_at)}</td>
                     <td className="px-2 py-2 text-xs">{item.user_email ?? item.user_id}</td>
+                    <td className="px-2 py-2 text-xs text-muted">{item.user_phone ?? "—"}</td>
                     <td className="px-2 py-2 text-xs">{getFeedbackTypeLabel(item.type)}</td>
                     <td className="px-2 py-2">
                       <StatusBadge status={item.status} />

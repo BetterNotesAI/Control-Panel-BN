@@ -159,11 +159,11 @@ export async function enrichFeedbackRowsWithEmail(
   }
 
   const uniqueUserIds = [...new Set(rows.map((row) => row.user_id))];
-  const emailByUserId = new Map<string, string | null>();
+  const profileByUserId = new Map<string, { email: string | null; phone: string | null }>();
 
   const { data: profiles, error } = await supabase
     .from("profiles")
-    .select("id,email")
+    .select("id,email,phone")
     .in("id", uniqueUserIds);
 
   if (error) {
@@ -171,9 +171,10 @@ export async function enrichFeedbackRowsWithEmail(
   }
 
   for (const profile of profiles ?? []) {
-    const id = profile.id;
-    const email = profile.email ?? null;
-    emailByUserId.set(id, email);
+    profileByUserId.set(profile.id, {
+      email: profile.email ?? null,
+      phone: (profile as { phone?: string | null }).phone ?? null,
+    });
   }
 
   return rows.map((row) => ({
@@ -182,7 +183,8 @@ export async function enrichFeedbackRowsWithEmail(
     status: FEEDBACK_STATUS_SET.has(row.status as FeedbackStatus)
       ? (row.status as FeedbackStatus)
       : "new",
-    user_email: emailByUserId.get(row.user_id) ?? null,
+    user_email: profileByUserId.get(row.user_id)?.email ?? null,
+    user_phone: profileByUserId.get(row.user_id)?.phone ?? null,
   }));
 }
 

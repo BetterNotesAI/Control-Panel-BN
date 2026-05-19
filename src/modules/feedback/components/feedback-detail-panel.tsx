@@ -86,6 +86,10 @@ export function FeedbackDetailPanel({
               <p className="break-all text-foreground">{item.user_email ?? "-"}</p>
             </div>
             <div>
+              <p className="text-xs uppercase text-muted">Phone</p>
+              <p className="break-all text-foreground">{item.user_phone ?? "-"}</p>
+            </div>
+            <div>
               <p className="text-xs uppercase text-muted">Type</p>
               <p className="text-foreground">{getFeedbackTypeLabel(item.type)}</p>
             </div>

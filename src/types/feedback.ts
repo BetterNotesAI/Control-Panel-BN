@@ -34,6 +34,7 @@ export interface FeedbackItem {
   created_at: string;
   updated_at: string;
   user_email: string | null;
+  user_phone: string | null;
 }
 
 export interface FeedbackFilters {
