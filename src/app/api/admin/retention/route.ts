@@ -11,7 +11,7 @@ import type {
 } from "@/types/retention";
 
 const FETCH_PAGE_SIZE = 1000;
-const TOP_USERS_LIMIT = 25;
+const TOP_USERS_LIMIT = 10;
 const CHURNED_USERS_LIMIT = 100;
 const NEVER_ACTIVE_USERS_LIMIT = 100;
 
