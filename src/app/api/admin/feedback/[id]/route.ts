@@ -49,7 +49,7 @@ export async function PATCH(
       .update(updates)
       .eq("id", id)
       .select(
-        "id,user_id,message,page_path,source,status,admin_note,created_at,updated_at",
+        "id,user_id,message,phone_number,page_path,source,status,admin_note,created_at,updated_at",
       )
       .maybeSingle();
 
