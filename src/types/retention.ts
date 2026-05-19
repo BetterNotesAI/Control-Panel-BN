@@ -15,19 +15,31 @@ export interface RetentionTopUser {
   last_activity_at: string;
 }
 
-export interface RetentionOneTimeUser {
+/** Signed up but never triggered any AI activity */
+export interface RetentionNeverActiveUser {
   user_id: string;
   email: string | null;
   plan: string;
-  only_activity_at: string;
+  signed_up_at: string;
+  days_since_signup: number;
+}
+
+/** Had AI activity but hasn't returned in 7+ days */
+export interface RetentionChurnedUser {
+  user_id: string;
+  email: string | null;
+  plan: string;
+  total_projects: number;
+  last_activity_at: string;
   days_since: number;
 }
 
 export interface RetentionResponse {
   generatedAt: string;
-  totalUsersWithActivity: number;
+  totalUsers: number;
   retention7d: RetentionMetrics;
   retention30d: RetentionMetrics;
   topUsers: RetentionTopUser[];
-  oneTimeUsers: RetentionOneTimeUser[];
+  neverActiveUsers: RetentionNeverActiveUser[];
+  churnedUsers: RetentionChurnedUser[];
 }

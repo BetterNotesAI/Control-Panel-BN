@@ -3,15 +3,17 @@ import { toNumber, roundTo } from "@/lib/admin/projects";
 import { requireAdminForApi } from "@/lib/auth/require-admin";
 import { getSupabaseAdminClient } from "@/lib/supabase/service-role";
 import type {
+  RetentionChurnedUser,
   RetentionMetrics,
-  RetentionOneTimeUser,
+  RetentionNeverActiveUser,
   RetentionResponse,
   RetentionTopUser,
 } from "@/types/retention";
 
 const FETCH_PAGE_SIZE = 1000;
 const TOP_USERS_LIMIT = 25;
-const ONE_TIME_USERS_LIMIT = 100;
+const CHURNED_USERS_LIMIT = 100;
+const NEVER_ACTIVE_USERS_LIMIT = 100;
 
 interface UserActivity {
   userId: string;
@@ -22,12 +24,18 @@ interface UserActivity {
   totalCredits: number;
 }
 
+interface ProfileRow {
+  id: string;
+  email: string | null;
+  plan: string;
+  created_at: string | null;
+}
+
 function daysBetween(earlier: Date, later: Date): number {
   return Math.floor((later.getTime() - earlier.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// totalUsers = all profiles (the true lifetime denominator)
-// activeUsers = only those with AI activity (used for the numerator)
+// Denominator is total profiles; numerator is users with AI activity in the recency window.
 function computeRetentionMetrics(
   activeUsers: UserActivity[],
   totalUsers: number,
@@ -115,52 +123,34 @@ async function fetchAllUserActivity(): Promise<Map<string, UserActivity>> {
   return map;
 }
 
-async function fetchTotalProfileCount(): Promise<number> {
+// Fetches ALL profiles — used both for enrichment and to find never-active users.
+async function fetchAllProfiles(): Promise<ProfileRow[]> {
   const supabase = getSupabaseAdminClient();
-  const { count, error } = await supabase
-    .from("profiles")
-    .select("*", { count: "exact", head: true });
+  const profiles: ProfileRow[] = [];
+  let from = 0;
 
-  if (error) {
-    throw error;
-  }
-
-  return count ?? 0;
-}
-
-async function fetchProfileMap(
-  userIds: string[],
-): Promise<Map<string, { email: string | null; plan: string }>> {
-  const supabase = getSupabaseAdminClient();
-  const map = new Map<string, { email: string | null; plan: string }>();
-
-  if (userIds.length === 0) {
-    return map;
-  }
-
-  const batchSize = 5000;
-
-  for (let i = 0; i < userIds.length; i += batchSize) {
-    const batch = userIds.slice(i, i + batchSize);
-
+  while (true) {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id,email,plan")
-      .in("id", batch);
+      .select("id,email,plan,created_at")
+      .order("created_at", { ascending: false })
+      .range(from, from + FETCH_PAGE_SIZE - 1);
 
     if (error) {
       throw error;
     }
 
-    for (const row of data ?? []) {
-      map.set(row.id, {
-        email: row.email ?? null,
-        plan: typeof row.plan === "string" ? row.plan : "free",
-      });
+    const rows = (data ?? []) as ProfileRow[];
+    profiles.push(...rows);
+
+    if (rows.length < FETCH_PAGE_SIZE) {
+      break;
     }
+
+    from += FETCH_PAGE_SIZE;
   }
 
-  return map;
+  return profiles;
 }
 
 export async function GET() {
@@ -171,22 +161,26 @@ export async function GET() {
   }
 
   try {
-    const [activityMap, totalUsers] = await Promise.all([
+    const [activityMap, allProfiles] = await Promise.all([
       fetchAllUserActivity(),
-      fetchTotalProfileCount(),
+      fetchAllProfiles(),
     ]);
 
-    const users = Array.from(activityMap.values());
-    const activeUsers = users.filter((u) => u.firstActivityAt && u.lastActivityAt);
+    // Build a lookup map from all profiles for quick enrichment.
+    const profileMap = new Map<string, ProfileRow>(
+      allProfiles.map((p) => [p.id, p]),
+    );
 
-    const profileMap = await fetchProfileMap(activeUsers.map((u) => u.userId));
+    const activeUsers = Array.from(activityMap.values()).filter(
+      (u) => u.firstActivityAt && u.lastActivityAt,
+    );
+
+    const totalUsers = allProfiles.length;
 
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Denominator: all profiles (matches the overview user count).
-    // Numerator: users with AI activity in the recency window.
     const retention7d = computeRetentionMetrics(activeUsers, totalUsers, sevenDaysAgo, "7d");
     const retention30d = computeRetentionMetrics(activeUsers, totalUsers, thirtyDaysAgo, "30d");
 
@@ -210,36 +204,47 @@ export async function GET() {
         };
       });
 
-    const oneTimeUsers: RetentionOneTimeUser[] = activeUsers
-      .filter(
-        (u) =>
-          u.projectIds.size === 1 &&
-          u.lastActivityAt &&
-          new Date(u.lastActivityAt) < sevenDaysAgo,
-      )
+    // Signed up but never triggered any AI activity.
+    const neverActiveUsers: RetentionNeverActiveUser[] = allProfiles
+      .filter((p) => !activityMap.has(p.id))
+      .map((p) => ({
+        user_id: p.id,
+        email: p.email,
+        plan: p.plan ?? "free",
+        signed_up_at: p.created_at ?? now.toISOString(),
+        days_since_signup: daysBetween(new Date(p.created_at ?? now.toISOString()), now),
+      }))
+      .sort((a, b) => b.days_since_signup - a.days_since_signup)
+      .slice(0, NEVER_ACTIVE_USERS_LIMIT);
+
+    // Had AI activity but hasn't been back in 7+ days.
+    const churnedUsers: RetentionChurnedUser[] = activeUsers
+      .filter((u) => u.lastActivityAt && new Date(u.lastActivityAt) < sevenDaysAgo)
       .sort(
         (a, b) =>
           new Date(a.lastActivityAt!).getTime() - new Date(b.lastActivityAt!).getTime(),
       )
-      .slice(0, ONE_TIME_USERS_LIMIT)
+      .slice(0, CHURNED_USERS_LIMIT)
       .map((u) => {
         const profile = profileMap.get(u.userId);
         return {
           user_id: u.userId,
           email: profile?.email ?? null,
           plan: profile?.plan ?? "free",
-          only_activity_at: u.lastActivityAt!,
+          total_projects: u.projectIds.size,
+          last_activity_at: u.lastActivityAt!,
           days_since: daysBetween(new Date(u.lastActivityAt!), now),
         };
       });
 
     const response: RetentionResponse = {
       generatedAt: now.toISOString(),
-      totalUsersWithActivity: totalUsers,
+      totalUsers,
       retention7d,
       retention30d,
       topUsers,
-      oneTimeUsers,
+      neverActiveUsers,
+      churnedUsers,
     };
 
     return NextResponse.json(response);

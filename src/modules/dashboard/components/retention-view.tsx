@@ -29,6 +29,12 @@ function planBadgeClasses(plan: string): string {
   }
 }
 
+function daysBadgeClasses(days: number): string {
+  if (days >= 30) return "text-danger";
+  if (days >= 14) return "text-warning";
+  return "text-muted";
+}
+
 function RetentionGauge({
   label,
   subtitle,
@@ -104,7 +110,7 @@ export function RetentionView() {
         </div>
         {data ? (
           <p className="text-xs text-muted">
-            {formatNumber(data.totalUsersWithActivity)} users with activity &middot; updated{" "}
+            {formatNumber(data.totalUsers)} total users &middot; updated{" "}
             {formatDate(data.generatedAt)}
           </p>
         ) : null}
@@ -193,13 +199,11 @@ export function RetentionView() {
           </Card>
 
           <Card
-            title="One-time users"
-            subtitle={`${formatNumber(data.oneTimeUsers.length)} users who never came back (1 project, inactive 7+ days)`}
+            title="Never activated"
+            subtitle={`${formatNumber(data.neverActiveUsers.length)} users who signed up but never created anything`}
           >
-            {data.oneTimeUsers.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted">
-                No one-time users detected.
-              </p>
+            {data.neverActiveUsers.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted">No users in this group.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
@@ -207,12 +211,12 @@ export function RetentionView() {
                     <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
                       <th className="px-2 py-2">User</th>
                       <th className="px-2 py-2">Plan</th>
-                      <th className="px-2 py-2">Last active</th>
-                      <th className="px-2 py-2">Days since</th>
+                      <th className="px-2 py-2">Signed up</th>
+                      <th className="px-2 py-2">Days since signup</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.oneTimeUsers.map((user) => (
+                    {data.neverActiveUsers.map((user) => (
                       <tr
                         key={user.user_id}
                         className="border-b border-border/70 last:border-none"
@@ -231,18 +235,66 @@ export function RetentionView() {
                           </span>
                         </td>
                         <td className="px-2 py-3 text-xs text-muted">
-                          {formatDate(user.only_activity_at)}
+                          {formatDate(user.signed_up_at)}
+                        </td>
+                        <td className="px-2 py-3">
+                          <span className={`text-sm font-semibold ${daysBadgeClasses(user.days_since_signup)}`}>
+                            {user.days_since_signup}d
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <Card
+            title="One-time users"
+            subtitle={`${formatNumber(data.churnedUsers.length)} users who created content but haven't returned in 7+ days`}
+          >
+            {data.churnedUsers.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted">No users in this group.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
+                      <th className="px-2 py-2">User</th>
+                      <th className="px-2 py-2">Plan</th>
+                      <th className="px-2 py-2">Projects</th>
+                      <th className="px-2 py-2">Last active</th>
+                      <th className="px-2 py-2">Days since</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.churnedUsers.map((user) => (
+                      <tr
+                        key={user.user_id}
+                        className="border-b border-border/70 last:border-none"
+                      >
+                        <td className="px-2 py-3">
+                          <p className="font-medium text-foreground">
+                            {user.email ?? "—"}
+                          </p>
+                          <p className="text-xs text-muted">{user.user_id}</p>
                         </td>
                         <td className="px-2 py-3">
                           <span
-                            className={`text-sm font-semibold ${
-                              user.days_since >= 30
-                                ? "text-danger"
-                                : user.days_since >= 14
-                                  ? "text-warning"
-                                  : "text-muted"
-                            }`}
+                            className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${planBadgeClasses(user.plan)}`}
                           >
+                            {user.plan}
+                          </span>
+                        </td>
+                        <td className="px-2 py-3 text-xs text-muted">
+                          {formatNumber(user.total_projects)}
+                        </td>
+                        <td className="px-2 py-3 text-xs text-muted">
+                          {formatDate(user.last_activity_at)}
+                        </td>
+                        <td className="px-2 py-3">
+                          <span className={`text-sm font-semibold ${daysBadgeClasses(user.days_since)}`}>
                             {user.days_since}d
                           </span>
                         </td>
