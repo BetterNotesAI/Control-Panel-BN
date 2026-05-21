@@ -312,7 +312,7 @@ export async function GET() {
         count: oneDayUsers.length,
         percentage: pct(oneDayUsers.length),
         users: oneDayUsers.map((u) =>
-          toJourneyUser(profileMap.get(u.userId) ?? { id: u.userId, email: null, plan: "free", created_at: null }, u, now),
+          toJourneyUser(profileMap.get(u.userId) ?? { id: u.userId, email: null, phone_number: null, plan: "free", created_at: null }, u, now),
         ),
       },
       {
@@ -324,7 +324,7 @@ export async function GET() {
         users: retainedUsers
           .sort((a, b) => b.projectIds.size - a.projectIds.size)
           .map((u) =>
-            toJourneyUser(profileMap.get(u.userId) ?? { id: u.userId, email: null, plan: "free", created_at: null }, u, now),
+            toJourneyUser(profileMap.get(u.userId) ?? { id: u.userId, email: null, phone_number: null, plan: "free", created_at: null }, u, now),
           ),
       },
       {
