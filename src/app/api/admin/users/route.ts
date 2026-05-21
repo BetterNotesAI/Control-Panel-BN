@@ -75,38 +75,67 @@ export async function GET(request: Request) {
         usageByType: Map<string, { totalTokens: number; totalCredits: number }>;
       }
     >();
+    const referralMap = new Map<
+      string,
+      { code: string; code_type: "affiliate" | "friend"; created_at: string }
+    >();
+    const affiliateNameMap = new Map<string, string>(); // code → influencer_name
 
     if (profileIds.length > 0) {
-      const [subscriptionsResult, projectsResult, usageResult] = await Promise.all([
-        supabase
-          .from("subscriptions")
-          .select("user_id,plan,status,current_period_end,updated_at,created_at")
-          .in("user_id", profileIds)
-          .in("status", ["active", "trialing", "past_due"])
-          .order("user_id", { ascending: true })
-          .order("current_period_end", { ascending: false, nullsFirst: false })
-          .order("updated_at", { ascending: false, nullsFirst: false })
-          .order("created_at", { ascending: false, nullsFirst: false }),
-        supabase
-          .from("analytics_projects_v")
-          .select("user_id,project_type,project_id")
-          .in("user_id", profileIds),
-        supabase
-          .from("analytics_ai_usage_by_project_v")
-          .select("user_id,project_type,total_tokens,total_credits")
-          .in("user_id", profileIds),
-      ]);
+      const [subscriptionsResult, projectsResult, usageResult, redemptionsResult] =
+        await Promise.all([
+          supabase
+            .from("subscriptions")
+            .select("user_id,plan,status,current_period_end,updated_at,created_at")
+            .in("user_id", profileIds)
+            .in("status", ["active", "trialing", "past_due"])
+            .order("user_id", { ascending: true })
+            .order("current_period_end", { ascending: false, nullsFirst: false })
+            .order("updated_at", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false, nullsFirst: false }),
+          supabase
+            .from("analytics_projects_v")
+            .select("user_id,project_type,project_id")
+            .in("user_id", profileIds),
+          supabase
+            .from("analytics_ai_usage_by_project_v")
+            .select("user_id,project_type,total_tokens,total_credits")
+            .in("user_id", profileIds),
+          supabase
+            .from("referral_redemptions")
+            .select("redeemer_user_id,code,code_type,created_at")
+            .in("redeemer_user_id", profileIds),
+        ]);
 
-      if (subscriptionsResult.error) {
-        throw subscriptionsResult.error;
+      if (subscriptionsResult.error) throw subscriptionsResult.error;
+      if (projectsResult.error) throw projectsResult.error;
+      if (usageResult.error) throw usageResult.error;
+      // Referral data is optional enrichment — don't throw on error
+
+      for (const row of redemptionsResult.data ?? []) {
+        if (!referralMap.has(row.redeemer_user_id)) {
+          referralMap.set(row.redeemer_user_id, {
+            code: row.code,
+            code_type: row.code_type as "affiliate" | "friend",
+            created_at: row.created_at,
+          });
+        }
       }
 
-      if (projectsResult.error) {
-        throw projectsResult.error;
-      }
-
-      if (usageResult.error) {
-        throw usageResult.error;
+      // Resolve influencer names for any affiliate codes present
+      const affiliateCodes = [...new Set(
+        [...referralMap.values()]
+          .filter((r) => r.code_type === "affiliate")
+          .map((r) => r.code),
+      )];
+      if (affiliateCodes.length > 0) {
+        const { data: affiliateRows } = await supabase
+          .from("affiliate_codes")
+          .select("code,influencer_name")
+          .in("code", affiliateCodes);
+        for (const a of affiliateRows ?? []) {
+          affiliateNameMap.set(a.code, a.influencer_name);
+        }
       }
 
       for (const row of subscriptionsResult.data ?? []) {
@@ -211,6 +240,8 @@ export async function GET(request: Request) {
           return left.project_type.localeCompare(right.project_type);
         });
 
+      const redemption = referralMap.get(row.id) ?? null;
+
       return {
         id: row.id,
         email: row.email ?? null,
@@ -225,12 +256,21 @@ export async function GET(request: Request) {
             profileAvatar: record.avatar_url,
             authAvatar: auth?.avatar_url ?? null,
           }),
+        phone_number: typeof record.phone_number === "string" ? record.phone_number : null,
         plan: resolveEffectivePlan({
           subscriptionPlan: subscriptionMap.get(row.id)?.plan,
           profilePlan: typeof record.plan === "string" ? record.plan : null,
         }),
         created_at: row.created_at ?? new Date().toISOString(),
         last_sign_in_at: auth?.last_sign_in_at ?? null,
+        referral: redemption
+          ? {
+              code: redemption.code,
+              type: redemption.code_type,
+              influencer_name: affiliateNameMap.get(redemption.code) ?? null,
+              redeemed_at: redemption.created_at,
+            }
+          : null,
         stats: {
           total_projects: projectStats?.totalProjects ?? 0,
           total_tokens: Math.round(usageStats?.totalTokens ?? 0),

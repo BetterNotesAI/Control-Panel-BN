@@ -14,14 +14,24 @@ export interface AdminUserStats {
   project_type_breakdown: AdminUserProjectTypeStats[];
 }
 
+export interface AdminUserReferral {
+  code: string;
+  type: "affiliate" | "friend";
+  /** Influencer name for affiliate codes; null for friend codes */
+  influencer_name: string | null;
+  redeemed_at: string;
+}
+
 export interface AdminUserItem {
   id: string;
   email: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  phone_number: string | null;
   plan: UserPlanTier;
   created_at: string;
   last_sign_in_at: string | null;
+  referral: AdminUserReferral | null;
   stats: AdminUserStats;
 }
 
