@@ -31,12 +31,12 @@ interface FeatureMeta {
 const FEATURE_META: Record<string, FeatureMeta> = {
   latex_converter_free: {
     label: "LaTeX Converter",
-    badge: "Free",
+    badge: "Landing page",
     badgeClass: "border-border bg-surfaceMuted/50 text-muted",
   },
   latex_converter_product: {
     label: "LaTeX Converter",
-    badge: "Pro",
+    badge: "In-app",
     badgeClass: "border-info/40 bg-info/15 text-info",
   },
 };
