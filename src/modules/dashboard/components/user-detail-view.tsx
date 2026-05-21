@@ -305,6 +305,7 @@ export function UserDetailView({ userId }: UserDetailViewProps) {
 
       <div className="grid gap-6 xl:grid-cols-3">
         <Card title="Profile details" className="xl:col-span-1">
+          <ProfileRow label="Phone" value={user.phone_number} />
           <ProfileRow label="Bio" value={user.short_bio} />
           <ProfileRow label="University" value={user.university} />
           <ProfileRow label="Degree" value={user.degree} />

@@ -165,6 +165,7 @@ export async function GET(
           profileAvatar: profileRecord.avatar_url,
           authAvatar: authMetadata?.avatar_url ?? null,
         }),
+        phone_number: readString(profileRecord.phone_number),
         short_bio: readString(profileRecord.short_bio),
         university: readString(profileRecord.university),
         degree: readString(profileRecord.degree),
