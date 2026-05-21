@@ -3,17 +3,16 @@ import { toNumber, roundTo } from "@/lib/admin/projects";
 import { requireAdminForApi } from "@/lib/auth/require-admin";
 import { getSupabaseAdminClient } from "@/lib/supabase/service-role";
 import type {
-  RetentionChurnedUser,
+  JourneySegment,
+  JourneyUser,
   RetentionMetrics,
-  RetentionNeverActiveUser,
   RetentionResponse,
   RetentionTopUser,
 } from "@/types/retention";
 
 const FETCH_PAGE_SIZE = 1000;
 const TOP_USERS_LIMIT = 10;
-const CHURNED_USERS_LIMIT = 100;
-const NEVER_ACTIVE_USERS_LIMIT = 100;
+const PREMIUM_PLANS = new Set(["better", "best", "pro"]);
 
 interface UserActivity {
   userId: string;
@@ -35,7 +34,36 @@ function daysBetween(earlier: Date, later: Date): number {
   return Math.floor((later.getTime() - earlier.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// Denominator is total profiles; numerator is users with AI activity in the recency window.
+function isSameCalendarDay(a: string, b: string): boolean {
+  return (
+    new Date(a).toISOString().slice(0, 10) === new Date(b).toISOString().slice(0, 10)
+  );
+}
+
+function toJourneyUser(
+  profile: ProfileRow,
+  activity: UserActivity | undefined,
+  now: Date,
+): JourneyUser {
+  const lastAt = activity?.lastActivityAt ?? null;
+  const signedUpAt = profile.created_at;
+
+  return {
+    user_id: profile.id,
+    email: profile.email,
+    plan: profile.plan ?? "free",
+    signed_up_at: signedUpAt,
+    first_activity_at: activity?.firstActivityAt ?? null,
+    last_activity_at: lastAt,
+    total_projects: activity?.projectIds.size ?? 0,
+    days_since: lastAt
+      ? daysBetween(new Date(lastAt), now)
+      : signedUpAt
+        ? daysBetween(new Date(signedUpAt), now)
+        : null,
+  };
+}
+
 function computeRetentionMetrics(
   activeUsers: UserActivity[],
   totalUsers: number,
@@ -69,15 +97,10 @@ async function fetchAllUserActivity(): Promise<Map<string, UserActivity>> {
       .order("user_id", { ascending: true })
       .range(from, from + FETCH_PAGE_SIZE - 1);
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     const rows = data ?? [];
-
-    if (rows.length === 0) {
-      break;
-    }
+    if (rows.length === 0) break;
 
     for (const row of rows) {
       const existing = map.get(row.user_id) ?? {
@@ -89,9 +112,7 @@ async function fetchAllUserActivity(): Promise<Map<string, UserActivity>> {
         totalCredits: 0,
       };
 
-      if (row.project_id) {
-        existing.projectIds.add(row.project_id);
-      }
+      if (row.project_id) existing.projectIds.add(row.project_id);
 
       if (
         row.first_event_at &&
@@ -109,21 +130,16 @@ async function fetchAllUserActivity(): Promise<Map<string, UserActivity>> {
 
       existing.totalTokens += toNumber(row.total_tokens);
       existing.totalCredits += toNumber(row.total_credits);
-
       map.set(row.user_id, existing);
     }
 
-    if (rows.length < FETCH_PAGE_SIZE) {
-      break;
-    }
-
+    if (rows.length < FETCH_PAGE_SIZE) break;
     from += FETCH_PAGE_SIZE;
   }
 
   return map;
 }
 
-// Fetches ALL profiles — used both for enrichment and to find never-active users.
 async function fetchAllProfiles(): Promise<ProfileRow[]> {
   const supabase = getSupabaseAdminClient();
   const profiles: ProfileRow[] = [];
@@ -136,21 +152,49 @@ async function fetchAllProfiles(): Promise<ProfileRow[]> {
       .order("created_at", { ascending: false })
       .range(from, from + FETCH_PAGE_SIZE - 1);
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     const rows = (data ?? []) as ProfileRow[];
     profiles.push(...rows);
 
-    if (rows.length < FETCH_PAGE_SIZE) {
-      break;
-    }
-
+    if (rows.length < FETCH_PAGE_SIZE) break;
     from += FETCH_PAGE_SIZE;
   }
 
   return profiles;
+}
+
+// Returns a map of user_id → whether email is confirmed.
+// Fails silently — email confirmation is optional enrichment.
+async function fetchEmailConfirmationMap(): Promise<Map<string, boolean>> {
+  const supabase = getSupabaseAdminClient();
+  const map = new Map<string, boolean>();
+
+  try {
+    let page = 1;
+
+    while (true) {
+      const { data, error } = await supabase.auth.admin.listUsers({
+        page,
+        perPage: 1000,
+      });
+
+      if (error) break;
+
+      const users = data?.users ?? [];
+
+      for (const user of users) {
+        map.set(user.id, Boolean(user.email_confirmed_at));
+      }
+
+      if (users.length < 1000) break;
+      page++;
+    }
+  } catch {
+    // Optional enrichment — proceed without confirmation data.
+  }
+
+  return map;
 }
 
 export async function GET() {
@@ -161,22 +205,19 @@ export async function GET() {
   }
 
   try {
-    const [activityMap, allProfiles] = await Promise.all([
+    const [activityMap, allProfiles, confirmationMap] = await Promise.all([
       fetchAllUserActivity(),
       fetchAllProfiles(),
+      fetchEmailConfirmationMap(),
     ]);
 
-    // Build a lookup map from all profiles for quick enrichment.
-    const profileMap = new Map<string, ProfileRow>(
-      allProfiles.map((p) => [p.id, p]),
-    );
+    const profileMap = new Map<string, ProfileRow>(allProfiles.map((p) => [p.id, p]));
 
     const activeUsers = Array.from(activityMap.values()).filter(
       (u) => u.firstActivityAt && u.lastActivityAt,
     );
 
     const totalUsers = allProfiles.length;
-
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -186,9 +227,8 @@ export async function GET() {
 
     const topUsers: RetentionTopUser[] = [...activeUsers]
       .sort((a, b) => {
-        const projectDiff = b.projectIds.size - a.projectIds.size;
-        if (projectDiff !== 0) return projectDiff;
-        return b.totalTokens - a.totalTokens;
+        const d = b.projectIds.size - a.projectIds.size;
+        return d !== 0 ? d : b.totalTokens - a.totalTokens;
       })
       .slice(0, TOP_USERS_LIMIT)
       .map((u) => {
@@ -204,47 +244,106 @@ export async function GET() {
         };
       });
 
-    // Signed up but never triggered any AI activity.
-    const neverActiveUsers: RetentionNeverActiveUser[] = allProfiles
-      .filter((p) => !activityMap.has(p.id))
-      .map((p) => ({
-        user_id: p.id,
-        email: p.email,
-        plan: p.plan ?? "free",
-        signed_up_at: p.created_at ?? now.toISOString(),
-        days_since_signup: daysBetween(new Date(p.created_at ?? now.toISOString()), now),
-      }))
-      .sort((a, b) => b.days_since_signup - a.days_since_signup)
-      .slice(0, NEVER_ACTIVE_USERS_LIMIT);
+    // ── Journey segments ──────────────────────────────────────────────────────
 
-    // Had AI activity but hasn't been back in 7+ days.
-    const churnedUsers: RetentionChurnedUser[] = activeUsers
-      .filter((u) => u.lastActivityAt && new Date(u.lastActivityAt) < sevenDaysAgo)
-      .sort(
-        (a, b) =>
-          new Date(a.lastActivityAt!).getTime() - new Date(b.lastActivityAt!).getTime(),
-      )
-      .slice(0, CHURNED_USERS_LIMIT)
-      .map((u) => {
-        const profile = profileMap.get(u.userId);
-        return {
-          user_id: u.userId,
-          email: profile?.email ?? null,
-          plan: profile?.plan ?? "free",
-          total_projects: u.projectIds.size,
-          last_activity_at: u.lastActivityAt!,
-          days_since: daysBetween(new Date(u.lastActivityAt!), now),
-        };
-      });
+    // 1. Unconfirmed email
+    const unconfirmedProfiles = allProfiles.filter(
+      (p) => confirmationMap.size > 0 && confirmationMap.get(p.id) === false,
+    );
+
+    // 2. No content — confirmed (or confirmation unknown) and no AI activity
+    const noContentProfiles = allProfiles.filter(
+      (p) => !activityMap.has(p.id) && confirmationMap.get(p.id) !== false,
+    );
+
+    // 3. One-day wonder — active on one calendar day only, inactive 7+ days
+    const oneDayUsers = activeUsers.filter(
+      (u) =>
+        u.firstActivityAt &&
+        u.lastActivityAt &&
+        isSameCalendarDay(u.firstActivityAt, u.lastActivityAt) &&
+        new Date(u.lastActivityAt) < sevenDaysAgo,
+    );
+
+    // 4. Retained — activity spans more than one calendar day
+    const retainedUsers = activeUsers.filter(
+      (u) =>
+        u.firstActivityAt &&
+        u.lastActivityAt &&
+        !isSameCalendarDay(u.firstActivityAt, u.lastActivityAt),
+    );
+
+    // 5. Premium — plan is not free
+    const premiumProfiles = allProfiles.filter((p) =>
+      PREMIUM_PLANS.has((p.plan ?? "").toLowerCase()),
+    );
+
+    function pct(count: number): number {
+      return totalUsers > 0 ? roundTo((count / totalUsers) * 100, 1) : 0;
+    }
+
+    const journey: JourneySegment[] = [
+      {
+        key: "unconfirmed",
+        label: "Unconfirmed email",
+        description: "Signed up but never verified their email address",
+        count: unconfirmedProfiles.length,
+        percentage: pct(unconfirmedProfiles.length),
+        users: unconfirmedProfiles.map((p) =>
+          toJourneyUser(p, activityMap.get(p.id), now),
+        ),
+      },
+      {
+        key: "no_content",
+        label: "No content created",
+        description: "Confirmed account but never created any AI content",
+        count: noContentProfiles.length,
+        percentage: pct(noContentProfiles.length),
+        users: noContentProfiles.map((p) =>
+          toJourneyUser(p, activityMap.get(p.id), now),
+        ),
+      },
+      {
+        key: "one_day",
+        label: "One-day users",
+        description: "Created content in one session and never returned",
+        count: oneDayUsers.length,
+        percentage: pct(oneDayUsers.length),
+        users: oneDayUsers.map((u) =>
+          toJourneyUser(profileMap.get(u.userId) ?? { id: u.userId, email: null, plan: "free", created_at: null }, u, now),
+        ),
+      },
+      {
+        key: "retained",
+        label: "Retained",
+        description: "Came back on more than one day after first use",
+        count: retainedUsers.length,
+        percentage: pct(retainedUsers.length),
+        users: retainedUsers
+          .sort((a, b) => b.projectIds.size - a.projectIds.size)
+          .map((u) =>
+            toJourneyUser(profileMap.get(u.userId) ?? { id: u.userId, email: null, plan: "free", created_at: null }, u, now),
+          ),
+      },
+      {
+        key: "premium",
+        label: "Premium",
+        description: "On a paid plan (Better or Best)",
+        count: premiumProfiles.length,
+        percentage: pct(premiumProfiles.length),
+        users: premiumProfiles.map((p) =>
+          toJourneyUser(p, activityMap.get(p.id), now),
+        ),
+      },
+    ];
 
     const response: RetentionResponse = {
       generatedAt: now.toISOString(),
       totalUsers,
       retention7d,
       retention30d,
+      journey,
       topUsers,
-      neverActiveUsers,
-      churnedUsers,
     };
 
     return NextResponse.json(response);

@@ -15,23 +15,31 @@ export interface RetentionTopUser {
   last_activity_at: string;
 }
 
-/** Signed up but never triggered any AI activity */
-export interface RetentionNeverActiveUser {
+export interface JourneyUser {
   user_id: string;
   email: string | null;
   plan: string;
-  signed_up_at: string;
-  days_since_signup: number;
+  signed_up_at: string | null;
+  first_activity_at: string | null;
+  last_activity_at: string | null;
+  total_projects: number;
+  days_since: number | null;
 }
 
-/** Had AI activity but hasn't returned in 7+ days */
-export interface RetentionChurnedUser {
-  user_id: string;
-  email: string | null;
-  plan: string;
-  total_projects: number;
-  last_activity_at: string;
-  days_since: number;
+export type JourneySegmentKey =
+  | "unconfirmed"
+  | "no_content"
+  | "one_day"
+  | "retained"
+  | "premium";
+
+export interface JourneySegment {
+  key: JourneySegmentKey;
+  label: string;
+  description: string;
+  count: number;
+  percentage: number;
+  users: JourneyUser[];
 }
 
 export interface RetentionResponse {
@@ -39,7 +47,6 @@ export interface RetentionResponse {
   totalUsers: number;
   retention7d: RetentionMetrics;
   retention30d: RetentionMetrics;
+  journey: JourneySegment[];
   topUsers: RetentionTopUser[];
-  neverActiveUsers: RetentionNeverActiveUser[];
-  churnedUsers: RetentionChurnedUser[];
 }
