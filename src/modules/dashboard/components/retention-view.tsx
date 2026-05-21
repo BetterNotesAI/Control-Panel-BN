@@ -160,6 +160,7 @@ function JourneyUserTable({ segment }: { segment: JourneySegment }) {
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
                 <th className="px-2 py-2">User</th>
+                <th className="px-2 py-2">Phone</th>
                 <th className="px-2 py-2">Plan</th>
                 {showSignupCol ? <th className="px-2 py-2">Signed up</th> : null}
                 {showActivityCols ? (
@@ -187,6 +188,9 @@ function JourneyUserTable({ segment }: { segment: JourneySegment }) {
                   <td className="px-2 py-3">
                     <p className="font-medium text-foreground">{user.email ?? "—"}</p>
                     <p className="text-xs text-muted">{user.user_id}</p>
+                  </td>
+                  <td className="px-2 py-3 text-xs text-muted">
+                    {user.phone_number ?? "—"}
                   </td>
                   <td className="px-2 py-3">
                     <span

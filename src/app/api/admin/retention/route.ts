@@ -26,6 +26,7 @@ interface UserActivity {
 interface ProfileRow {
   id: string;
   email: string | null;
+  phone_number: string | null;
   plan: string;
   created_at: string | null;
 }
@@ -51,6 +52,7 @@ function toJourneyUser(
   return {
     user_id: profile.id,
     email: profile.email,
+    phone_number: profile.phone_number ?? null,
     plan: profile.plan ?? "free",
     signed_up_at: signedUpAt,
     first_activity_at: activity?.firstActivityAt ?? null,
@@ -148,7 +150,7 @@ async function fetchAllProfiles(): Promise<ProfileRow[]> {
   while (true) {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id,email,plan,created_at")
+      .select("id,email,phone_number,plan,created_at")
       .order("created_at", { ascending: false })
       .range(from, from + FETCH_PAGE_SIZE - 1);
 

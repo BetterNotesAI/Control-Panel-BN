@@ -18,6 +18,7 @@ export interface RetentionTopUser {
 export interface JourneyUser {
   user_id: string;
   email: string | null;
+  phone_number: string | null;
   plan: string;
   signed_up_at: string | null;
   first_activity_at: string | null;
