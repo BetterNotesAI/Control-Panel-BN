@@ -110,7 +110,10 @@ export async function GET(request: Request) {
       if (subscriptionsResult.error) throw subscriptionsResult.error;
       if (projectsResult.error) throw projectsResult.error;
       if (usageResult.error) throw usageResult.error;
-      // Referral data is optional enrichment — don't throw on error
+      // Referral data is optional enrichment — don't throw, but log so we can diagnose
+      if (redemptionsResult.error) {
+        console.error("[users] referral_redemptions query failed:", redemptionsResult.error.message);
+      }
 
       for (const row of redemptionsResult.data ?? []) {
         if (!referralMap.has(row.redeemer_user_id)) {
