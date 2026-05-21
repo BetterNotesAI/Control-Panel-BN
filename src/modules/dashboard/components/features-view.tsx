@@ -18,6 +18,39 @@ function formatDate(value: string | null): string {
   });
 }
 
+// ── Feature display names ─────────────────────────────────────────────────────
+// Maps raw database feature keys to human-readable labels and optional badges.
+// Add new entries here whenever a new feature key appears in the analytics view.
+
+interface FeatureMeta {
+  label: string;
+  badge?: string; // short tag shown beside the label, e.g. "Free" | "Pro"
+  badgeClass?: string; // Tailwind classes for the badge
+}
+
+const FEATURE_META: Record<string, FeatureMeta> = {
+  latex_converter_free: {
+    label: "LaTeX Converter",
+    badge: "Free",
+    badgeClass: "border-border bg-surfaceMuted/50 text-muted",
+  },
+  latex_converter_product: {
+    label: "LaTeX Converter",
+    badge: "Pro",
+    badgeClass: "border-info/40 bg-info/15 text-info",
+  },
+};
+
+function featureMeta(key: string): FeatureMeta {
+  if (FEATURE_META[key]) return FEATURE_META[key];
+  // Fallback: convert snake_case → Title Case
+  const label = key
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return { label };
+}
+
 function UsageBar({ value, max }: { value: number; max: number }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
@@ -129,7 +162,26 @@ export function FeaturesView() {
                         className="border-b border-border/70 last:border-none"
                       >
                         <td className="px-2 py-3">
-                          <span className="font-medium text-foreground">{item.feature}</span>
+                          {(() => {
+                            const meta = featureMeta(item.feature);
+                            return (
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-foreground">{meta.label}</span>
+                                  {meta.badge ? (
+                                    <span
+                                      className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${meta.badgeClass ?? ""}`}
+                                    >
+                                      {meta.badge}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                {meta.label !== item.feature ? (
+                                  <span className="text-xs text-muted/60">{item.feature}</span>
+                                ) : null}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-2 py-3 text-sm font-semibold text-foreground">
                           {formatNumber(item.event_count)}
