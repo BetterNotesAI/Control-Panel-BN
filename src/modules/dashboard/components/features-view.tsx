@@ -24,8 +24,10 @@ function formatDate(value: string | null): string {
 
 interface FeatureMeta {
   label: string;
-  badge?: string; // short tag shown beside the label, e.g. "Free" | "Pro"
-  badgeClass?: string; // Tailwind classes for the badge
+  badge?: string;
+  badgeClass?: string;
+  /** When true, the raw key is shown as a dim subtitle for reference. */
+  showKey?: boolean;
 }
 
 const FEATURE_META: Record<string, FeatureMeta> = {
@@ -33,22 +35,33 @@ const FEATURE_META: Record<string, FeatureMeta> = {
     label: "LaTeX Converter",
     badge: "Landing page",
     badgeClass: "border-border bg-surfaceMuted/50 text-muted",
+    showKey: true,
   },
   latex_converter_product: {
     label: "LaTeX Converter",
     badge: "In-app",
     badgeClass: "border-info/40 bg-info/15 text-info",
+    showKey: true,
+  },
+  latex_converter: {
+    label: "LaTeX Converter",
+    showKey: false,
   },
 };
 
-function featureMeta(key: string): FeatureMeta {
-  if (FEATURE_META[key]) return FEATURE_META[key];
-  // Fallback: convert snake_case → Title Case
-  const label = key
+/** snake_case (optionally with colon namespace) → "Title Case" */
+function prettify(raw: string): string {
+  // For namespaced keys like "module:action_name", use the part before the colon
+  const base = raw.includes(":") ? raw.split(":")[0] : raw;
+  return base
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
-  return { label };
+}
+
+function featureMeta(key: string): FeatureMeta {
+  if (FEATURE_META[key]) return FEATURE_META[key];
+  return { label: prettify(key), showKey: false };
 }
 
 function UsageBar({ value, max }: { value: number; max: number }) {
@@ -176,7 +189,7 @@ export function FeaturesView() {
                                     </span>
                                   ) : null}
                                 </div>
-                                {meta.label !== item.feature ? (
+                                {meta.showKey ? (
                                   <span className="text-xs text-muted/60">{item.feature}</span>
                                 ) : null}
                               </div>
