@@ -71,6 +71,7 @@ export interface Database {
           degree: string | null;
           profile_visibility: string;
           language: string;
+          phone_number: string | null;
           created_at: string | null;
           updated_at: string | null;
           admin_role: Database["public"]["Enums"]["admin_role_enum"];
@@ -87,6 +88,7 @@ export interface Database {
           degree?: string | null;
           profile_visibility?: string;
           language?: string;
+          phone_number?: string | null;
           created_at?: string | null;
           updated_at?: string | null;
           admin_role?: Database["public"]["Enums"]["admin_role_enum"];
@@ -103,6 +105,7 @@ export interface Database {
           degree?: string | null;
           profile_visibility?: string;
           language?: string;
+          phone_number?: string | null;
           created_at?: string | null;
           updated_at?: string | null;
           admin_role?: Database["public"]["Enums"]["admin_role_enum"];
@@ -214,6 +217,114 @@ export interface Database {
         };
         Relationships: [];
       };
+      affiliate_codes: {
+        Row: {
+          id: string;
+          code: string;
+          influencer_name: string;
+          influencer_email: string | null;
+          stripe_coupon_id: string;
+          campaign_ends_at: string;
+          payout_per_user_cents: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          influencer_name: string;
+          influencer_email?: string | null;
+          stripe_coupon_id: string;
+          campaign_ends_at: string;
+          payout_per_user_cents?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          influencer_name?: string;
+          influencer_email?: string | null;
+          stripe_coupon_id?: string;
+          campaign_ends_at?: string;
+          payout_per_user_cents?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      referral_codes: {
+        Row: {
+          id: string;
+          user_id: string;
+          code: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          code: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          code?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      referral_redemptions: {
+        Row: {
+          id: string;
+          redeemer_user_id: string;
+          code: string;
+          code_type: "affiliate" | "friend";
+          payout_status: "pending" | "cleared" | null;
+          payout_eligible_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          redeemer_user_id: string;
+          code: string;
+          code_type: "affiliate" | "friend";
+          payout_status?: "pending" | "cleared" | null;
+          payout_eligible_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          redeemer_user_id?: string;
+          code?: string;
+          code_type?: "affiliate" | "friend";
+          payout_status?: "pending" | "cleared" | null;
+          payout_eligible_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      credit_grants: {
+        Row: {
+          id: string;
+          user_id: string;
+          amount: number;
+          reason: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          amount: number;
+          reason: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          amount?: number;
+          reason?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       analytics_projects_v: {
@@ -310,6 +421,14 @@ export interface Database {
       admin_database_size_bytes: {
         Args: Record<string, never>;
         Returns: number | string;
+      };
+      grant_credits: {
+        Args: {
+          p_user_id: string;
+          p_amount: number;
+          p_reason: string;
+        };
+        Returns: void;
       };
     };
     Enums: {

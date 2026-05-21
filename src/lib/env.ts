@@ -26,3 +26,7 @@ export function getSupabaseServiceRoleKey(): string {
     "SUPABASE_SERVICE_ROLE_KEY",
   );
 }
+
+export function getStripeSecretKey(): string {
+  return assertRequiredEnv(process.env.STRIPE_SECRET_KEY, "STRIPE_SECRET_KEY");
+}
