@@ -26,13 +26,13 @@ export async function GET() {
       const { count: signupCount } = await supabase
         .from("referral_redemptions")
         .select("id", { count: "exact", head: true })
-        .eq("code", c.code)
+        .eq("affiliate_code_id", c.id)
         .eq("code_type", "affiliate");
 
       const { count: conversionCount } = await supabase
         .from("referral_redemptions")
         .select("id", { count: "exact", head: true })
-        .eq("code", c.code)
+        .eq("affiliate_code_id", c.id)
         .eq("code_type", "affiliate")
         .eq("payout_status", "cleared");
 

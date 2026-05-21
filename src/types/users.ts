@@ -15,10 +15,9 @@ export interface AdminUserStats {
 }
 
 export interface AdminUserReferral {
-  code: string;
   type: "affiliate" | "friend";
-  /** Influencer name for affiliate codes; null for friend codes */
-  influencer_name: string | null;
+  /** Influencer name (affiliate) or referrer email/name (friend) */
+  label: string;
   redeemed_at: string;
 }
 

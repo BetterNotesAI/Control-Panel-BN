@@ -275,28 +275,34 @@ export interface Database {
         Row: {
           id: string;
           redeemer_user_id: string;
-          code: string;
           code_type: "affiliate" | "friend";
+          referral_code_id: string | null;
+          affiliate_code_id: string | null;
           payout_status: "pending" | "cleared" | null;
           payout_eligible_at: string | null;
+          redeemed_at: string;
           created_at: string;
         };
         Insert: {
           id?: string;
           redeemer_user_id: string;
-          code: string;
           code_type: "affiliate" | "friend";
+          referral_code_id?: string | null;
+          affiliate_code_id?: string | null;
           payout_status?: "pending" | "cleared" | null;
           payout_eligible_at?: string | null;
+          redeemed_at?: string;
           created_at?: string;
         };
         Update: {
           id?: string;
           redeemer_user_id?: string;
-          code?: string;
           code_type?: "affiliate" | "friend";
+          referral_code_id?: string | null;
+          affiliate_code_id?: string | null;
           payout_status?: "pending" | "cleared" | null;
           payout_eligible_at?: string | null;
+          redeemed_at?: string;
           created_at?: string;
         };
         Relationships: [];

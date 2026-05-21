@@ -167,23 +167,16 @@ function UsersListTable({ users }: { users: AdminUserItem[] }) {
               <td className="px-3 py-3">
                 {user.referral ? (
                   <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${
-                          user.referral.type === "affiliate"
-                            ? "border-warning/40 bg-warning/15 text-warning"
-                            : "border-info/40 bg-info/15 text-info"
-                        }`}
-                      >
-                        {user.referral.type === "affiliate" ? "Influencer" : "Friend"}
-                      </span>
-                      <span className="font-mono text-xs text-foreground">
-                        {user.referral.code}
-                      </span>
-                    </div>
-                    {user.referral.influencer_name ? (
-                      <span className="text-xs text-muted">{user.referral.influencer_name}</span>
-                    ) : null}
+                    <span
+                      className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-medium ${
+                        user.referral.type === "affiliate"
+                          ? "border-warning/40 bg-warning/15 text-warning"
+                          : "border-info/40 bg-info/15 text-info"
+                      }`}
+                    >
+                      {user.referral.type === "affiliate" ? "Influencer" : "Friend"}
+                    </span>
+                    <span className="text-xs text-foreground">{user.referral.label}</span>
                   </div>
                 ) : (
                   <span className="text-xs text-muted">—</span>

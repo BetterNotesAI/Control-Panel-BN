@@ -75,11 +75,11 @@ export async function GET(request: Request) {
         usageByType: Map<string, { totalTokens: number; totalCredits: number }>;
       }
     >();
+    // redeemer_user_id → { type, label, redeemed_at }
     const referralMap = new Map<
       string,
-      { code: string; code_type: "affiliate" | "friend"; created_at: string }
+      { type: "affiliate" | "friend"; label: string; redeemed_at: string }
     >();
-    const affiliateNameMap = new Map<string, string>(); // code → influencer_name
 
     if (profileIds.length > 0) {
       const [subscriptionsResult, projectsResult, usageResult, redemptionsResult] =
@@ -103,42 +103,94 @@ export async function GET(request: Request) {
             .in("user_id", profileIds),
           supabase
             .from("referral_redemptions")
-            .select("redeemer_user_id,code,code_type,created_at")
+            .select("redeemer_user_id,code_type,referral_code_id,affiliate_code_id,redeemed_at")
             .in("redeemer_user_id", profileIds),
         ]);
 
       if (subscriptionsResult.error) throw subscriptionsResult.error;
       if (projectsResult.error) throw projectsResult.error;
       if (usageResult.error) throw usageResult.error;
-      // Referral data is optional enrichment — don't throw, but log so we can diagnose
       if (redemptionsResult.error) {
         console.error("[users] referral_redemptions query failed:", redemptionsResult.error.message);
       }
 
-      for (const row of redemptionsResult.data ?? []) {
-        if (!referralMap.has(row.redeemer_user_id)) {
-          referralMap.set(row.redeemer_user_id, {
-            code: row.code,
-            code_type: row.code_type as "affiliate" | "friend",
-            created_at: row.created_at,
-          });
-        }
+      const redemptions = redemptionsResult.data ?? [];
+
+      // Collect IDs to resolve in bulk
+      const affiliateCodeIds = [...new Set(
+        redemptions.filter((r) => r.affiliate_code_id).map((r) => r.affiliate_code_id as string),
+      )];
+      const referralCodeIds = [...new Set(
+        redemptions.filter((r) => r.referral_code_id).map((r) => r.referral_code_id as string),
+      )];
+
+      // Resolve affiliate names and referrer user IDs in parallel
+      const [affiliateCodesResult, referralCodesResult] = await Promise.all([
+        affiliateCodeIds.length > 0
+          ? supabase
+              .from("affiliate_codes")
+              .select("id,influencer_name")
+              .in("id", affiliateCodeIds)
+          : Promise.resolve({ data: [], error: null }),
+        referralCodeIds.length > 0
+          ? supabase
+              .from("referral_codes")
+              .select("id,user_id")
+              .in("id", referralCodeIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      const affiliateNameById = new Map(
+        (affiliateCodesResult.data ?? []).map((a) => [a.id, a.influencer_name]),
+      );
+
+      // Resolve referrer profiles (email/name) for friend codes
+      const referrerUserIds = [...new Set(
+        (referralCodesResult.data ?? []).map((rc) => rc.user_id),
+      )];
+      const referralCodeUserById = new Map(
+        (referralCodesResult.data ?? []).map((rc) => [rc.id, rc.user_id]),
+      );
+
+      let referrerProfileById = new Map<string, string>(); // user_id → display label
+      if (referrerUserIds.length > 0) {
+        const { data: referrerProfiles } = await supabase
+          .from("profiles")
+          .select("id,email,display_name")
+          .in("id", referrerUserIds);
+        referrerProfileById = new Map(
+          (referrerProfiles ?? []).map((p) => {
+            const record = p as Record<string, unknown>;
+            const label =
+              typeof record.display_name === "string" && record.display_name
+                ? record.display_name
+                : (p.email ?? p.id);
+            return [p.id, label];
+          }),
+        );
       }
 
-      // Resolve influencer names for any affiliate codes present
-      const affiliateCodes = [...new Set(
-        [...referralMap.values()]
-          .filter((r) => r.code_type === "affiliate")
-          .map((r) => r.code),
-      )];
-      if (affiliateCodes.length > 0) {
-        const { data: affiliateRows } = await supabase
-          .from("affiliate_codes")
-          .select("code,influencer_name")
-          .in("code", affiliateCodes);
-        for (const a of affiliateRows ?? []) {
-          affiliateNameMap.set(a.code, a.influencer_name);
+      // Build the final referral map
+      for (const row of redemptions) {
+        if (referralMap.has(row.redeemer_user_id)) continue;
+
+        const type = row.code_type as "affiliate" | "friend";
+        let label = "Unknown";
+
+        if (type === "affiliate" && row.affiliate_code_id) {
+          label = affiliateNameById.get(row.affiliate_code_id) ?? "Affiliate";
+        } else if (type === "friend" && row.referral_code_id) {
+          const referrerUserId = referralCodeUserById.get(row.referral_code_id);
+          label = referrerUserId
+            ? (referrerProfileById.get(referrerUserId) ?? referrerUserId)
+            : "Friend";
         }
+
+        referralMap.set(row.redeemer_user_id, {
+          type,
+          label,
+          redeemed_at: row.redeemed_at,
+        });
       }
 
       for (const row of subscriptionsResult.data ?? []) {
@@ -268,10 +320,9 @@ export async function GET(request: Request) {
         last_sign_in_at: auth?.last_sign_in_at ?? null,
         referral: redemption
           ? {
-              code: redemption.code,
-              type: redemption.code_type,
-              influencer_name: affiliateNameMap.get(redemption.code) ?? null,
-              redeemed_at: redemption.created_at,
+              type: redemption.type,
+              label: redemption.label,
+              redeemed_at: redemption.redeemed_at,
             }
           : null,
         stats: {
