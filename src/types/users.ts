@@ -73,6 +73,7 @@ export interface AdminUserDetail {
   username: string | null;
   avatar_url: string | null;
   phone_number: string | null;
+  referral: AdminUserReferral | null;
   short_bio: string | null;
   university: string | null;
   degree: string | null;

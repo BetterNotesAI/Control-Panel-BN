@@ -95,28 +95,73 @@ export async function GET(
 
     const { startIso, endIso } = getMonthRange();
 
-    const { data: monthUsageRows, error: monthUsageError } = await supabase
-      .from("ai_usage_events")
-      .select("total_cost_usd")
-      .eq("user_id", id)
-      .gte("created_at", startIso)
-      .lt("created_at", endIso);
+    const [monthUsageResult, recentUsageResult, redemptionResult] = await Promise.all([
+      supabase
+        .from("ai_usage_events")
+        .select("total_cost_usd")
+        .eq("user_id", id)
+        .gte("created_at", startIso)
+        .lt("created_at", endIso),
+      supabase
+        .from("ai_usage_events")
+        .select(
+          "id,provider,model,feature,input_tokens,cached_input_tokens,output_tokens,total_cost_usd,created_at",
+        )
+        .eq("user_id", id)
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("referral_redemptions")
+        .select("code_type,referral_code_id,affiliate_code_id,redeemed_at")
+        .eq("redeemer_user_id", id)
+        .maybeSingle(),
+    ]);
 
-    if (monthUsageError) {
-      throw monthUsageError;
-    }
+    if (monthUsageResult.error) throw monthUsageResult.error;
+    if (recentUsageResult.error) throw recentUsageResult.error;
 
-    const { data: recentUsageRows, error: recentUsageError } = await supabase
-      .from("ai_usage_events")
-      .select(
-        "id,provider,model,feature,input_tokens,cached_input_tokens,output_tokens,total_cost_usd,created_at",
-      )
-      .eq("user_id", id)
-      .order("created_at", { ascending: false })
-      .limit(20);
+    const monthUsageRows = monthUsageResult.data;
+    const recentUsageRows = recentUsageResult.data;
 
-    if (recentUsageError) {
-      throw recentUsageError;
+    // Resolve referral label
+    let referral: import("@/types/users").AdminUserReferral | null = null;
+    const redemption = redemptionResult.data;
+    if (redemption) {
+      const type = redemption.code_type as "affiliate" | "friend";
+      let label = "Unknown";
+
+      if (type === "affiliate" && redemption.affiliate_code_id) {
+        const { data: aff } = await supabase
+          .from("affiliate_codes")
+          .select("influencer_name")
+          .eq("id", redemption.affiliate_code_id)
+          .maybeSingle();
+        label = aff?.influencer_name ?? "Affiliate";
+      } else if (type === "friend" && redemption.referral_code_id) {
+        const { data: rc } = await supabase
+          .from("referral_codes")
+          .select("user_id")
+          .eq("id", redemption.referral_code_id)
+          .maybeSingle();
+        if (rc?.user_id) {
+          const { data: referrer } = await supabase
+            .from("profiles")
+            .select("email,display_name")
+            .eq("id", rc.user_id)
+            .maybeSingle();
+          const referrerRecord = referrer as Record<string, unknown> | null;
+          label =
+            (typeof referrerRecord?.display_name === "string" && referrerRecord.display_name
+              ? referrerRecord.display_name
+              : null) ??
+            referrer?.email ??
+            rc.user_id;
+        } else {
+          label = "Friend";
+        }
+      }
+
+      referral = { type, label, redeemed_at: redemption.redeemed_at };
     }
 
     const periodUsdUsed = roundTo(
@@ -166,6 +211,7 @@ export async function GET(
           authAvatar: authMetadata?.avatar_url ?? null,
         }),
         phone_number: readString(profileRecord.phone_number),
+        referral,
         short_bio: readString(profileRecord.short_bio),
         university: readString(profileRecord.university),
         degree: readString(profileRecord.degree),

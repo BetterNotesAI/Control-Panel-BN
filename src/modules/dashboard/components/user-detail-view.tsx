@@ -306,6 +306,25 @@ export function UserDetailView({ userId }: UserDetailViewProps) {
       <div className="grid gap-6 xl:grid-cols-3">
         <Card title="Profile details" className="xl:col-span-1">
           <ProfileRow label="Phone" value={user.phone_number} />
+          <div className="flex items-start justify-between gap-3 border-b border-border/70 py-3">
+            <span className="text-xs uppercase tracking-wide text-muted">Referral</span>
+            {user.referral ? (
+              <div className="flex flex-col items-end gap-1">
+                <span
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${
+                    user.referral.type === "affiliate"
+                      ? "border-warning/40 bg-warning/15 text-warning"
+                      : "border-info/40 bg-info/15 text-info"
+                  }`}
+                >
+                  {user.referral.type === "affiliate" ? "Influencer" : "Friend"}
+                </span>
+                <span className="text-right text-sm text-foreground">{user.referral.label}</span>
+              </div>
+            ) : (
+              <span className="text-sm text-foreground">—</span>
+            )}
+          </div>
           <ProfileRow label="Bio" value={user.short_bio} />
           <ProfileRow label="University" value={user.university} />
           <ProfileRow label="Degree" value={user.degree} />
