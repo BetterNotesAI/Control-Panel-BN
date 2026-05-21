@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { ErrorState, LoadingState } from "@/components/ui/state";
 import type { JourneySegment, JourneySegmentKey, JourneyUser, RetentionResponse } from "@/types/retention";
@@ -137,6 +138,7 @@ function JourneyCard({
 }
 
 function JourneyUserTable({ segment }: { segment: JourneySegment }) {
+  const router = useRouter();
   const showActivityCols =
     segment.key === "one_day" || segment.key === "retained";
   const showSignupCol =
@@ -183,7 +185,16 @@ function JourneyUserTable({ segment }: { segment: JourneySegment }) {
               {segment.users.map((user: JourneyUser) => (
                 <tr
                   key={user.user_id}
-                  className="border-b border-border/70 last:border-none"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push(`/dashboard/users/${user.user_id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      router.push(`/dashboard/users/${user.user_id}`);
+                    }
+                  }}
+                  className="cursor-pointer border-b border-border/70 transition-colors hover:bg-surfaceMuted/35 focus-visible:bg-surfaceMuted/35 focus-visible:outline-none last:border-none"
                 >
                   <td className="px-2 py-3">
                     <p className="font-medium text-foreground">{user.email ?? "—"}</p>
