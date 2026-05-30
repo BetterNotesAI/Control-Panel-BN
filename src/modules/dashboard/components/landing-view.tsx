@@ -84,32 +84,27 @@ function ConversionCard({
   label,
   signups,
   anonSessions,
-  rate,
 }: {
   label: string;
   signups: number;
   anonSessions: number;
-  rate: number | null;
 }) {
-  const pct = rate ?? 0;
-  const color = pct >= 10 ? "bg-success" : pct >= 3 ? "bg-warning" : "bg-danger";
-
   return (
     <section className="rounded-xl border border-border bg-surface/80 p-6 shadow-soft backdrop-blur">
       <p className="text-xs font-medium uppercase tracking-widest text-muted">{label}</p>
-      <p className="mt-3 text-4xl font-semibold text-foreground">
-        {rate !== null ? `${rate}%` : "—"}
-      </p>
-      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-surfaceMuted">
-        <div
-          className={`h-full rounded-full transition-all ${color}`}
-          style={{ width: `${Math.min(100, pct)}%` }}
-        />
+      <div className="mt-4 grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-xs text-muted">Anon sessions</p>
+          <p className="mt-1 text-3xl font-semibold text-foreground">{formatNumber(anonSessions)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">New signups</p>
+          <p className="mt-1 text-3xl font-semibold text-foreground">{formatNumber(signups)}</p>
+        </div>
       </div>
-      <p className="mt-2 text-xs text-muted">
-        {formatNumber(signups)} new signups &middot; {formatNumber(anonSessions)} anon sessions
+      <p className="mt-3 text-xs text-muted/60">
+        Signups include all new accounts, not only those from anonymous sessions.
       </p>
-      <p className="mt-1 text-xs text-muted/60">Estimated rate (new signups ÷ anon sessions)</p>
     </section>
   );
 }
@@ -186,16 +181,14 @@ export function LandingView() {
           {/* Conversion section */}
           <div className="grid gap-4 md:grid-cols-2">
             <ConversionCard
-              label="7-day conversion"
+              label="Last 7 days"
               signups={data.conversion.newRealSignups7d}
               anonSessions={data.anonymousSessions.last7d}
-              rate={data.conversion.estimatedRate7d}
             />
             <ConversionCard
-              label="30-day conversion"
+              label="Last 30 days"
               signups={data.conversion.newRealSignups30d}
               anonSessions={data.anonymousSessions.last30d}
-              rate={data.conversion.estimatedRate30d}
             />
           </div>
 
@@ -238,9 +231,7 @@ export function LandingView() {
                                   </span>
                                 ) : null}
                               </div>
-                              {meta.showKey ? (
-                                <span className="text-xs text-muted/60">{item.feature}</span>
-                              ) : null}
+                              <span className="text-xs text-muted/60">{item.feature}</span>
                             </div>
                           </td>
                           <td className="px-2 py-3 text-sm font-semibold text-foreground">
