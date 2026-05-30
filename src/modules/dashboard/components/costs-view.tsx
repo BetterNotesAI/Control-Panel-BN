@@ -189,29 +189,39 @@ export function CostsView() {
 
       {!loading && !error && data ? (
         <>
+          {/* Stripe not configured notice */}
+          {!data.stripeAvailable ? (
+            <div className="rounded-xl border border-warning/40 bg-warning/10 px-5 py-4 text-sm text-warning">
+              <span className="font-medium">Stripe not connected</span>
+              <span className="ml-2 text-warning/80">— add <code className="font-mono">STRIPE_SECRET_KEY</code> to Vercel environment variables to see revenue and MRR.</span>
+            </div>
+          ) : null}
+
           {/* MRR & Subscriptions banner */}
-          <div className="rounded-xl border border-border bg-surface/80 p-6">
-            <div className="flex flex-wrap gap-10">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-muted">
-                  Estimated MRR
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-foreground">
-                  {formatUsdRounded(data.revenue.mrrCents / 100)}
-                  <span className="ml-1 text-base font-normal text-muted">/ mo</span>
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-muted">
-                  Active Subscriptions
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-foreground">
-                  {formatNumber(data.revenue.activeSubscriptions)}
-                  <span className="ml-1 text-base font-normal text-muted">subscribers</span>
-                </p>
+          {data.stripeAvailable ? (
+            <div className="rounded-xl border border-border bg-surface/80 p-6">
+              <div className="flex flex-wrap gap-10">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-widest text-muted">
+                    Estimated MRR
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold text-foreground">
+                    {formatUsdRounded(data.revenue.mrrCents / 100)}
+                    <span className="ml-1 text-base font-normal text-muted">/ mo</span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-widest text-muted">
+                    Active Subscriptions
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold text-foreground">
+                    {formatNumber(data.revenue.activeSubscriptions)}
+                    <span className="ml-1 text-base font-normal text-muted">subscribers</span>
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
 
           {/* P&L grid */}
           <div className="grid gap-4 md:grid-cols-3">

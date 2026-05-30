@@ -75,6 +75,9 @@ export async function POST(req: NextRequest) {
 
   // Create Stripe coupon — 50% off, once
   const stripe = getStripeClient();
+  if (!stripe) {
+    return NextResponse.json({ error: "Stripe is not configured on this server (missing STRIPE_SECRET_KEY)." }, { status: 503 });
+  }
   let coupon: { id: string };
   try {
     coupon = await stripe.coupons.create({

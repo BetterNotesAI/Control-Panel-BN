@@ -42,9 +42,11 @@ async function fetchCostForPeriod(
   return { cost_usd: roundTo(totalCost, 6), event_count: eventCount };
 }
 
+const ZERO_REVENUE: RevenuePeriod = { gross_usd: 0, charge_count: 0 };
+
 /** Fetch Stripe charges for a time window (unix timestamps). */
 async function fetchStripeRevenue(
-  stripe: ReturnType<typeof getStripeClient>,
+  stripe: NonNullable<ReturnType<typeof getStripeClient>>,
   gteUnix: number,
   ltUnix: number,
 ): Promise<RevenuePeriod> {
@@ -113,23 +115,27 @@ export async function GET() {
     }
 
     // ── Fetch all costs in parallel ────────────────────────────────────────
-    const [
-      costAllTime,
-      costLast7d,
-      costLast30d,
-      costThisMonth,
-      rev7d,
-      rev30d,
-      revThisMonth,
-    ] = await Promise.all([
+    const [costAllTime, costLast7d, costLast30d, costThisMonth] = await Promise.all([
       fetchCostForPeriod(supabase),
       fetchCostForPeriod(supabase, sevenDaysAgoIso),
       fetchCostForPeriod(supabase, thirtyDaysAgoIso),
       fetchCostForPeriod(supabase, thisMonthStartIso),
-      fetchStripeRevenue(stripe, sevenDaysAgoUnix, nowUnix),
-      fetchStripeRevenue(stripe, thirtyDaysAgoUnix, nowUnix),
-      fetchStripeRevenue(stripe, thisMonthStartUnix, nowUnix),
     ]);
+
+    // ── Stripe revenue (skipped if key not configured) ─────────────────────
+    let rev7d: RevenuePeriod = ZERO_REVENUE;
+    let rev30d: RevenuePeriod = ZERO_REVENUE;
+    let revThisMonth: RevenuePeriod = ZERO_REVENUE;
+    let mrrCents = 0;
+    let activeSubs = 0;
+
+    if (stripe) {
+      [rev7d, rev30d, revThisMonth] = await Promise.all([
+        fetchStripeRevenue(stripe, sevenDaysAgoUnix, nowUnix),
+        fetchStripeRevenue(stripe, thirtyDaysAgoUnix, nowUnix),
+        fetchStripeRevenue(stripe, thisMonthStartUnix, nowUnix),
+      ]);
+    }
 
     // ── Anonymous vs registered cost split ────────────────────────────────
     let anonCostTotal = 0;
@@ -191,43 +197,44 @@ export async function GET() {
       .sort((a, b) => b.cost_usd - a.cost_usd);
 
     // ── Stripe MRR ────────────────────────────────────────────────────────
-    let mrrCents = 0;
-    let activeSubs = 0;
-    let subHasMore = true;
-    let subStartingAfter: string | undefined;
+    if (stripe) {
+      let subHasMore = true;
+      let subStartingAfter: string | undefined;
 
-    while (subHasMore) {
-      const subs = await stripe.subscriptions.list({
-        status: "active",
-        limit: 100,
-        expand: ["data.items.data.price"],
-        ...(subStartingAfter ? { starting_after: subStartingAfter } : {}),
-      });
+      while (subHasMore) {
+        const subs = await stripe.subscriptions.list({
+          status: "active",
+          limit: 100,
+          expand: ["data.items.data.price"],
+          ...(subStartingAfter ? { starting_after: subStartingAfter } : {}),
+        });
 
-      for (const sub of subs.data) {
-        activeSubs++;
-        for (const item of sub.items.data) {
-          const price = item.price;
-          if (!price?.unit_amount) continue;
-          const interval = price.recurring?.interval ?? "month";
-          const intervalCount = price.recurring?.interval_count ?? 1;
-          if (interval === "year") {
-            mrrCents += Math.round(price.unit_amount / 12 / intervalCount);
-          } else if (interval === "month") {
-            mrrCents += Math.round(price.unit_amount / intervalCount);
-          } else {
-            mrrCents += price.unit_amount;
+        for (const sub of subs.data) {
+          activeSubs++;
+          for (const item of sub.items.data) {
+            const price = item.price;
+            if (!price?.unit_amount) continue;
+            const interval = price.recurring?.interval ?? "month";
+            const intervalCount = price.recurring?.interval_count ?? 1;
+            if (interval === "year") {
+              mrrCents += Math.round(price.unit_amount / 12 / intervalCount);
+            } else if (interval === "month") {
+              mrrCents += Math.round(price.unit_amount / intervalCount);
+            } else {
+              mrrCents += price.unit_amount;
+            }
           }
         }
-      }
 
-      subHasMore = subs.has_more;
-      if (subs.data.length > 0) subStartingAfter = subs.data[subs.data.length - 1].id;
-      else break;
+        subHasMore = subs.has_more;
+        if (subs.data.length > 0) subStartingAfter = subs.data[subs.data.length - 1].id;
+        else break;
+      }
     }
 
     const response: CostsIncomeResponse = {
       generatedAt: now.toISOString(),
+      stripeAvailable: stripe !== null,
       costs: {
         allTime: costAllTime,
         last7d: costLast7d,

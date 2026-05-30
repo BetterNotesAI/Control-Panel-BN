@@ -17,6 +17,7 @@ export interface FeatureCost {
 
 export interface CostsIncomeResponse {
   generatedAt: string;
+  stripeAvailable: boolean;
   costs: {
     allTime: CostPeriod;
     last7d: CostPeriod;
