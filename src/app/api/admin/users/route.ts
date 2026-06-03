@@ -41,6 +41,23 @@ export async function GET(request: Request) {
   const supabase = getSupabaseAdminClient();
 
   try {
+    // ── Collect anonymous user IDs to exclude from the registered users list ──
+    const anonIdSet = new Set<string>();
+    try {
+      let authPage = 1;
+      while (true) {
+        const { data, error } = await supabase.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+        if (error || !data?.users?.length) break;
+        for (const u of data.users) {
+          if (u.is_anonymous) anonIdSet.add(u.id);
+        }
+        if (data.users.length < 1000) break;
+        authPage++;
+      }
+    } catch {
+      // If auth enumeration fails, proceed without filtering — better to show extra rows
+    }
+
     let query = supabase
       .from("profiles")
       .select("*", { count: "exact" })
@@ -49,6 +66,11 @@ export async function GET(request: Request) {
 
     if (search) {
       query = query.ilike("email", `%${search}%`);
+    }
+
+    // Exclude anonymous/landing-page users
+    if (anonIdSet.size > 0) {
+      query = query.not("id", "in", `(${[...anonIdSet].join(",")})`);
     }
 
     const { data: profiles, error, count } = await query;
@@ -248,17 +270,22 @@ export async function GET(request: Request) {
     >();
 
     try {
-      const { data: authData } = await supabase.auth.admin.listUsers({
-        page: 1,
-        perPage: 1000,
-      });
-
-      for (const u of authData?.users ?? []) {
-        authMap.set(u.id, {
-          full_name: (u.user_metadata?.full_name as string) ?? null,
-          avatar_url: (u.user_metadata?.avatar_url as string) ?? null,
-          last_sign_in_at: u.last_sign_in_at ?? null,
-        });
+      // Reuse the same full auth scan we already did above for anonIdSet
+      let authPage = 1;
+      while (true) {
+        const { data, error } = await supabase.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+        if (error || !data?.users?.length) break;
+        for (const u of data.users) {
+          if (!u.is_anonymous) {
+            authMap.set(u.id, {
+              full_name: (u.user_metadata?.full_name as string) ?? null,
+              avatar_url: (u.user_metadata?.avatar_url as string) ?? null,
+              last_sign_in_at: u.last_sign_in_at ?? null,
+            });
+          }
+        }
+        if (data.users.length < 1000) break;
+        authPage++;
       }
     } catch {
       // Auth enrichment is optional — profiles data is enough
