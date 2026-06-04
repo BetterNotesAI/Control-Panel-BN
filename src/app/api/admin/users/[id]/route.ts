@@ -96,9 +96,11 @@ export async function GET(
     const { startIso, endIso } = getMonthRange();
 
     const [monthUsageResult, recentUsageResult, redemptionResult] = await Promise.all([
+      // Use the analytics view so we read the product's real credit accounting
+      // (total_credits) rather than fabricating credits from raw USD cost.
       supabase
-        .from("ai_usage_events")
-        .select("total_cost_usd")
+        .from("analytics_ai_usage_events_v")
+        .select("total_credits,total_cost_usd")
         .eq("user_id", id)
         .gte("created_at", startIso)
         .lt("created_at", endIso),
@@ -164,9 +166,15 @@ export async function GET(
       referral = { type, label, redeemed_at: redemption.redeemed_at };
     }
 
+    // periodUsdUsed = our actual raw AI cost for this user this month (uncapped).
     const periodUsdUsed = roundTo(
       (monthUsageRows ?? []).reduce((sum, row) => sum + readNumber(row.total_cost_usd), 0),
       8,
+    );
+    // creditsUsed = the product's real credit charge for this user this month.
+    const periodCreditsUsed = roundTo(
+      (monthUsageRows ?? []).reduce((sum, row) => sum + readNumber(row.total_credits), 0),
+      4,
     );
 
     const profileRecord = profile as Record<string, unknown>;
@@ -178,10 +186,11 @@ export async function GET(
     });
 
     const creditsLimit = getPlanCreditLimit(plan);
+    const creditsUsed = periodCreditsUsed;
+    const creditsRemaining = roundTo(Math.max(creditsLimit - creditsUsed, 0), 4);
+    // USD allowance is a rough $0.01/credit nominal figure, kept for the USD card.
     const usdLimit = roundTo(creditsLimit * 0.01, 8);
     const usdRemaining = roundTo(Math.max(usdLimit - periodUsdUsed, 0), 8);
-    const creditsUsed = roundTo(periodUsdUsed / 0.01, 4);
-    const creditsRemaining = roundTo(usdRemaining / 0.01, 4);
 
     const recentUsageEvents: UserUsageEventItem[] = (recentUsageRows ?? []).map((row) => ({
       id: row.id,
