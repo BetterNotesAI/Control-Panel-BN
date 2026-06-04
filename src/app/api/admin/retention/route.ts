@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchAnonymousUserIds } from "@/lib/admin/anonymous";
 import { toNumber, roundTo } from "@/lib/admin/projects";
 import { requireAdminForApi } from "@/lib/auth/require-admin";
 import { getSupabaseAdminClient } from "@/lib/supabase/service-role";
@@ -241,16 +242,20 @@ export async function GET() {
   }
 
   try {
-    const [activityMap, allProfiles, confirmationMap] = await Promise.all([
+    const [activityMap, allProfilesRaw, confirmationMap, anonIds] = await Promise.all([
       fetchAllUserActivity(),
       fetchAllProfiles(),
       fetchEmailConfirmationMap(),
+      fetchAnonymousUserIds(),
     ]);
+
+    // Exclude anonymous landing-page users from the registered-user journey.
+    const allProfiles = allProfilesRaw.filter((p) => !anonIds.has(p.id));
 
     const profileMap = new Map<string, ProfileRow>(allProfiles.map((p) => [p.id, p]));
 
     const activeUsers = Array.from(activityMap.values()).filter(
-      (u) => u.firstActivityAt && u.lastActivityAt,
+      (u) => u.firstActivityAt && u.lastActivityAt && !anonIds.has(u.userId),
     );
 
     const totalUsers = allProfiles.length;

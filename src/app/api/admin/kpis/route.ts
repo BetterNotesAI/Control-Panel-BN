@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { anonExclusionFilter, fetchAnonymousUserIds } from "@/lib/admin/anonymous";
 import { requireAdminForApi } from "@/lib/auth/require-admin";
 import { getSupabaseAdminClient } from "@/lib/supabase/service-role";
 import type { AdminKpis } from "@/types/admin";
@@ -12,7 +13,11 @@ interface CountFilter {
 
 type CountableTable = keyof Database["public"]["Tables"];
 
-async function countRows(table: CountableTable, filter?: CountFilter): Promise<number> {
+async function countRows(
+  table: CountableTable,
+  filter?: CountFilter,
+  excludeIds?: string | null,
+): Promise<number> {
   const supabase = getSupabaseAdminClient();
   let query = supabase.from(table).select("*", { count: "exact", head: true });
 
@@ -22,6 +27,10 @@ async function countRows(table: CountableTable, filter?: CountFilter): Promise<n
     } else {
       query = query.gte(filter.column, filter.value);
     }
+  }
+
+  if (excludeIds) {
+    query = query.not("id", "in", excludeIds);
   }
 
   const { count, error } = await query;
@@ -43,6 +52,9 @@ export async function GET() {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   try {
+    // Exclude anonymous landing-page users from user counts.
+    const anonExclude = anonExclusionFilter(await fetchAnonymousUserIds());
+
     const [
       totalUsers,
       usersLast7Days,
@@ -51,12 +63,16 @@ export async function GET() {
       feedbackTotal,
       feedbackNew,
     ] = await Promise.all([
-      countRows("profiles"),
-      countRows("profiles", {
-        column: "created_at",
-        operator: "gte",
-        value: sevenDaysAgo,
-      }),
+      countRows("profiles", undefined, anonExclude),
+      countRows(
+        "profiles",
+        {
+          column: "created_at",
+          operator: "gte",
+          value: sevenDaysAgo,
+        },
+        anonExclude,
+      ),
       countRows("documents"),
       countRows("problem_solver_sessions"),
       countRows("user_feedback"),
