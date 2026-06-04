@@ -292,13 +292,12 @@ export async function GET() {
       (p) => !activityMap.has(p.id) && confirmationMap.get(p.id) !== false,
     );
 
-    // 3. One-day wonder — active on one calendar day only, inactive 7+ days
+    // 3. One-day users — all activity falls on a single calendar day
     const oneDayUsers = activeUsers.filter(
       (u) =>
         u.firstActivityAt &&
         u.lastActivityAt &&
-        isSameCalendarDay(u.firstActivityAt, u.lastActivityAt) &&
-        new Date(u.lastActivityAt) < sevenDaysAgo,
+        isSameCalendarDay(u.firstActivityAt, u.lastActivityAt),
     );
 
     // 4. Retained — activity spans more than one calendar day
@@ -342,7 +341,7 @@ export async function GET() {
       {
         key: "one_day",
         label: "One-day users",
-        description: "Created content in one session and never returned",
+        description: "Created content on a single day only",
         count: oneDayUsers.length,
         percentage: pct(oneDayUsers.length),
         users: oneDayUsers.map((u) =>
