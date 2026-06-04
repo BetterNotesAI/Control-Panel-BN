@@ -87,15 +87,33 @@ function computeRetentionMetrics(
   };
 }
 
+function getOrCreateActivity(map: Map<string, UserActivity>, userId: string): UserActivity {
+  const existing = map.get(userId);
+  if (existing) return existing;
+  const created: UserActivity = {
+    userId,
+    projectIds: new Set<string>(),
+    firstActivityAt: null,
+    lastActivityAt: null,
+    totalTokens: 0,
+    totalCredits: 0,
+  };
+  map.set(userId, created);
+  return created;
+}
+
 async function fetchAllUserActivity(): Promise<Map<string, UserActivity>> {
   const supabase = getSupabaseAdminClient();
   const map = new Map<string, UserActivity>();
-  let from = 0;
 
+  // 1. Primary activity signal — ALL AI usage, including features that aren't
+  //    tied to a project (e.g. cheat-sheet / exam_helper). The by-project view
+  //    misses these, which previously mislabeled active users as "no content".
+  let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from("analytics_ai_usage_by_project_v")
-      .select("user_id,project_id,first_event_at,last_event_at,total_tokens,total_credits")
+      .from("analytics_ai_usage_by_user_feature_model_v")
+      .select("user_id,first_event_at,last_event_at,total_tokens,total_credits")
       .order("user_id", { ascending: true })
       .range(from, from + FETCH_PAGE_SIZE - 1);
 
@@ -105,16 +123,7 @@ async function fetchAllUserActivity(): Promise<Map<string, UserActivity>> {
     if (rows.length === 0) break;
 
     for (const row of rows) {
-      const existing = map.get(row.user_id) ?? {
-        userId: row.user_id,
-        projectIds: new Set<string>(),
-        firstActivityAt: null,
-        lastActivityAt: null,
-        totalTokens: 0,
-        totalCredits: 0,
-      };
-
-      if (row.project_id) existing.projectIds.add(row.project_id);
+      const existing = getOrCreateActivity(map, row.user_id);
 
       if (
         row.first_event_at &&
@@ -132,7 +141,32 @@ async function fetchAllUserActivity(): Promise<Map<string, UserActivity>> {
 
       existing.totalTokens += toNumber(row.total_tokens);
       existing.totalCredits += toNumber(row.total_credits);
-      map.set(row.user_id, existing);
+    }
+
+    if (rows.length < FETCH_PAGE_SIZE) break;
+    from += FETCH_PAGE_SIZE;
+  }
+
+  // 2. Project counts — from the by-project view, only to populate the project
+  //    count used for display and the "most active users" ranking. Timestamps
+  //    and token totals already came from the (broader) view above.
+  from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("analytics_ai_usage_by_project_v")
+      .select("user_id,project_id")
+      .order("user_id", { ascending: true })
+      .range(from, from + FETCH_PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    const rows = data ?? [];
+    if (rows.length === 0) break;
+
+    for (const row of rows) {
+      if (!row.project_id) continue;
+      const existing = getOrCreateActivity(map, row.user_id);
+      existing.projectIds.add(row.project_id);
     }
 
     if (rows.length < FETCH_PAGE_SIZE) break;
